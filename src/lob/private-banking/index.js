@@ -14,6 +14,7 @@ export function statementFor(accountId, quarter) {
       { label: 'Drawn', value: credit.drawn },
       { label: 'Available', value: credit.available },
       { label: 'Loan-to-value', value: credit.loanToValue },
+      { label: 'LTV status', value: credit.ltvStatus },
       { label: 'Annual service fee', value: FEE_SCHEDULES['private-banking'].annualServiceFee },
     ],
   });

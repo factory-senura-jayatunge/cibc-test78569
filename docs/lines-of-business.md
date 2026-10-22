@@ -92,6 +92,14 @@ Secured lines of credit against an investment portfolio.
 
 **Credit summary** (`credit.js`). Limit, drawn, available, the collateral account, and the loan-to-value ratio. Loan-to-value is the drawn amount divided by the collateral account's market value, rounded with `roundRatio`. Collateral is valued through Investor's Edge `positionsValue`, which is known debt (see [architecture.md](architecture.md#known-debt)).
 
+**Loan-to-value status** (PB-2210). `ltvStatus(ratio)` gives relationship managers an early warning before a margin call:
+
+| Loan-to-value | Status |
+| --- | --- |
+| Below 0.60 | `ok` |
+| 0.60 to 0.70 inclusive | `watch` |
+| Above 0.70, or no collateral value | `margin-call-warning` |
+
 **Fees.** $1,200 annual service fee.
 
 **Statement section: Credit facility.**
@@ -100,6 +108,7 @@ Secured lines of credit against an investment portfolio.
 | --- | --- |
 | Limit, Drawn, Available | `creditSummary` |
 | Loan-to-value | `loanToValue` |
+| LTV status | `ltvStatus` (PB-2210) |
 | Annual service fee | Fee schedule |
 
 ## Shared platform

@@ -108,7 +108,7 @@ An invalid order returns 400:
 
 ## `GET /api/credit/:accountId`
 
-Summarizes a Private Banking credit facility. Other account types return 400.
+Summarizes a Private Banking credit facility. Other account types return 400. `ltvStatus` is `ok` below 0.60, `watch` from 0.60 to 0.70 inclusive, and `margin-call-warning` above 0.70.
 
 ```http
 GET /api/credit/PB-12003885
@@ -122,7 +122,8 @@ GET /api/credit/PB-12003885
     "drawn": 52000,
     "available": 68000,
     "collateralAccount": "IE-58210077",
-    "loanToValue": 0.5472
+    "loanToValue": 0.5472,
+    "ltvStatus": "ok"
   }
 }
 ```

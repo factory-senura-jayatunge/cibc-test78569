@@ -8,15 +8,24 @@ export function loanToValue(account) {
   return roundRatio(account.drawn / collateral);
 }
 
+// Expects a ratio already rounded with roundRatio so the 0.60 and 0.70 boundaries are stable.
+export function ltvStatus(ratio) {
+  if (ratio < 0.6) return 'ok';
+  if (ratio <= 0.7) return 'watch';
+  return 'margin-call-warning';
+}
+
 export function creditSummary(accountId) {
   const account = getAccount(accountId);
   if (account.lob !== 'private-banking') throw new RangeError(`Account ${accountId} is not a private banking credit facility`);
+  const ltv = loanToValue(account);
   return {
     accountId: account.id,
     limit: account.creditLimit,
     drawn: account.drawn,
     available: roundCents(account.creditLimit - account.drawn),
     collateralAccount: account.collateralAccount,
-    loanToValue: loanToValue(account),
+    loanToValue: ltv,
+    ltvStatus: ltvStatus(ltv),
   };
 }

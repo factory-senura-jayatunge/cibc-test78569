@@ -5,3 +5,4 @@ One release note per change request, filed with the change. Each note maps accep
 | Change request | Line of business | Release | Note |
 | --- | --- | --- | --- |
 | [WG-1042](../change-requests/WG-1042-fee-disclosure.md): Annual fee disclosure on quarterly statements | Wood Gundy | 2026.11 | [WG-1042.md](WG-1042.md) |
+| [PB-2210](../change-requests/PB-2210-ltv-warning.md): Loan-to-value early warning on secured credit lines | Private Banking | 2026.11 | [PB-2210.md](PB-2210.md) |
