@@ -1,10 +1,12 @@
 #!/usr/bin/env node
+// @ts-check
 // Maps cross-boundary imports in the monolith and ranks lines of business by how cleanly they can be extracted.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT, buildImportGraph, couplingKind, domainOf } from './lib/graph.js';
 
 const { imports } = buildImportGraph();
+/** @type {import('./lib/graph.js').Coupling[]} */
 const edges = [];
 for (const [from, targets] of imports) {
   for (const to of targets) {
@@ -32,8 +34,16 @@ for (const v of violations) lines.push(`- \`${v.from}\` imports \`${v.to}\` (${v
 lines.push('', '## Extraction candidates (cleanest first)', '');
 lines.push('| Rank | Line of business | Blocking couplings | Platform contracts needed |');
 lines.push('| --- | --- | --- | --- |');
-ranking.forEach((r, i) => lines.push(`| ${i + 1} | ${r.lob} | ${r.blockers} | ${r.contracts.length} (${r.contracts.map((c) => c.replace('src/platform/', '')).join(', ')}) |`));
-lines.push('', 'Blocking couplings are imports that cross a line-of-business boundary or make the shared platform depend on one line of business. Platform contracts are the shared modules an extracted service would call through an API instead of an import.', '');
+ranking.forEach((r, i) =>
+  lines.push(
+    `| ${i + 1} | ${r.lob} | ${r.blockers} | ${r.contracts.length} (${r.contracts.map((c) => c.replace('src/platform/', '')).join(', ')}) |`,
+  ),
+);
+lines.push(
+  '',
+  'Blocking couplings are imports that cross a line-of-business boundary or make the shared platform depend on one line of business. Platform contracts are the shared modules an extracted service would call through an API instead of an import.',
+  '',
+);
 mkdirSync(join(ROOT, 'out'), { recursive: true });
 writeFileSync(join(ROOT, 'out/coupling-report.md'), `${lines.join('\n')}\n`);
 

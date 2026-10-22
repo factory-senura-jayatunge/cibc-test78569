@@ -1,3 +1,4 @@
+// @ts-check
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
@@ -7,7 +8,17 @@ import * as investorsEdge from './lob/investors-edge/index.js';
 import * as woodGundy from './lob/wood-gundy/index.js';
 import * as pic from './lob/pic/index.js';
 import * as privateBanking from './lob/private-banking/index.js';
+import { createLogger, parseLevel } from './observability/logger.js';
+import { PROMETHEUS_CONTENT_TYPE, createMetrics } from './observability/metrics.js';
+import { REQUEST_ID_HEADER, requestContext } from './observability/request-context.js';
 
+/** @typedef {import('./observability/logger.js').Logger} Logger */
+/** @typedef {ReturnType<typeof createMetrics>} Metrics */
+/** @typedef {{ status?: number, contentType?: string, body: unknown }} RouteResult */
+/** @typedef {{ req: http.IncomingMessage, url: URL, params: Record<string, string>, metrics: Metrics }} RouteContext */
+/** @typedef {{ method: string, path: string, handle: (context: RouteContext) => RouteResult | Promise<RouteResult> }} Route */
+
+/** @type {Record<string, { statementFor: (accountId: string, quarter: string) => unknown }>} */
 const LOBS = {
   'investors-edge': investorsEdge,
   'wood-gundy': woodGundy,
@@ -15,80 +26,169 @@ const LOBS = {
   'private-banking': privateBanking,
 };
 const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
+/** @type {Record<string, string>} */
 const CONTENT_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
 };
+const JSON_TYPE = 'application/json; charset=utf-8';
 
-function sendJson(res, status, body) {
-  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
-  res.end(JSON.stringify(body));
-}
-
+/** @param {http.IncomingMessage} req */
 async function readJson(req) {
   let raw = '';
   for await (const chunk of req) raw += chunk;
   return raw ? JSON.parse(raw) : {};
 }
 
+/** @param {{ id: string, lob: string, holder: string, type: string }} account */
 function summarize(account) {
   return { id: account.id, lob: account.lob, holder: account.holder, type: account.type };
 }
 
-async function routeApi(req, res, url, [resource, id, action]) {
-  if (req.method === 'GET' && resource === 'health') return sendJson(res, 200, { status: 'ok' });
-  if (req.method === 'GET' && resource === 'accounts' && !id) {
-    return sendJson(res, 200, { accounts: listAccounts(url.searchParams.get('lob') ?? undefined).map(summarize) });
+/** @type {Route[]} */
+const ROUTES = [
+  { method: 'GET', path: '/api/health', handle: () => ({ body: { status: 'ok' } }) },
+  {
+    method: 'GET',
+    path: '/api/metrics',
+    handle: ({ metrics }) => ({ contentType: PROMETHEUS_CONTENT_TYPE, body: metrics.render() }),
+  },
+  {
+    method: 'GET',
+    path: '/api/accounts',
+    handle: ({ url }) => ({ body: { accounts: listAccounts(url.searchParams.get('lob') ?? undefined).map(summarize) } }),
+  },
+  {
+    method: 'GET',
+    path: '/api/statements/:accountId',
+    handle: ({ url, params }) => {
+      const account = getAccount(params.accountId);
+      const quarter = url.searchParams.get('quarter') ?? '2026-Q3';
+      return { body: { statement: LOBS[account.lob].statementFor(params.accountId, quarter) } };
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/orders/preview',
+    handle: async ({ req }) => ({ body: { order: investorsEdge.previewOrder(await readJson(req)) } }),
+  },
+  {
+    method: 'GET',
+    path: '/api/credit/:accountId',
+    handle: ({ params }) => ({ body: { credit: privateBanking.creditSummary(params.accountId) } }),
+  },
+  {
+    method: 'GET',
+    path: '/api/mandates/:accountId/drift',
+    handle: ({ params }) => ({ body: { drift: pic.driftReport(params.accountId) } }),
+  },
+];
+
+/**
+ * @param {string} method
+ * @param {string[]} segments
+ * @returns {{ route: Route, params: Record<string, string> } | undefined}
+ */
+function matchRoute(method, segments) {
+  for (const route of ROUTES) {
+    if (route.method !== method) continue;
+    const template = route.path.split('/').filter(Boolean);
+    if (template.length !== segments.length) continue;
+    /** @type {Record<string, string>} */
+    const params = {};
+    const matches = template.every((part, index) => {
+      if (part.startsWith(':')) {
+        params[part.slice(1)] = segments[index];
+        return true;
+      }
+      return part === segments[index];
+    });
+    if (matches) return { route, params };
   }
-  if (req.method === 'GET' && resource === 'statements' && id) {
-    const account = getAccount(id);
-    const quarter = url.searchParams.get('quarter') ?? '2026-Q3';
-    return sendJson(res, 200, { statement: LOBS[account.lob].statementFor(id, quarter) });
-  }
-  if (req.method === 'POST' && resource === 'orders' && id === 'preview') {
-    return sendJson(res, 200, { order: investorsEdge.previewOrder(await readJson(req)) });
-  }
-  if (req.method === 'GET' && resource === 'credit' && id) {
-    return sendJson(res, 200, { credit: privateBanking.creditSummary(id) });
-  }
-  if (req.method === 'GET' && resource === 'mandates' && id && action === 'drift') {
-    return sendJson(res, 200, { drift: pic.driftReport(id) });
-  }
-  return sendJson(res, 404, { error: 'Not found' });
+  return undefined;
 }
 
-async function serveStatic(res, pathname) {
+/**
+ * @param {unknown} error
+ * @returns {{ status: number, message: string }}
+ */
+function errorResponse(error) {
+  const code = error instanceof Error ? Reflect.get(error, 'code') : undefined;
+  const message = error instanceof Error ? error.message : String(error);
+  if (code === 'NOT_FOUND') return { status: 404, message };
+  if (code === 'INVALID_ORDER' || error instanceof RangeError || error instanceof SyntaxError) return { status: 400, message };
+  return { status: 500, message: 'Internal error' };
+}
+
+/** @param {string} pathname @returns {Promise<{ status: number, contentType: string, body: string | Buffer }>} */
+async function readStatic(pathname) {
   const relativePath = pathname === '/' ? 'index.html' : pathname.slice(1);
   const file = normalize(join(PUBLIC_DIR, relativePath));
-  if (!file.startsWith(PUBLIC_DIR)) return sendJson(res, 404, { error: 'Not found' });
+  const notFound = { status: 404, contentType: JSON_TYPE, body: JSON.stringify({ error: 'Not found' }) };
+  if (!file.startsWith(PUBLIC_DIR)) return notFound;
   try {
-    const body = await readFile(file);
-    res.writeHead(200, { 'content-type': CONTENT_TYPES[extname(file)] ?? 'application/octet-stream' });
-    res.end(body);
+    return { status: 200, contentType: CONTENT_TYPES[extname(file)] ?? 'application/octet-stream', body: await readFile(file) };
   } catch {
-    sendJson(res, 404, { error: 'Not found' });
+    return notFound;
   }
 }
 
-export function createServer() {
+/**
+ * @param {http.IncomingMessage} req
+ * @param {URL} url
+ * @param {Metrics} metrics
+ * @returns {Promise<{ route: string, status: number, contentType: string, body: string | Buffer, error?: unknown }>}
+ */
+async function dispatch(req, url, metrics) {
+  const segments = url.pathname.split('/').filter(Boolean);
+  if (segments[0] !== 'api') return { route: 'static', ...(await readStatic(url.pathname)) };
+  const match = matchRoute(req.method ?? 'GET', segments);
+  if (!match) return { route: 'unmatched', status: 404, contentType: JSON_TYPE, body: JSON.stringify({ error: 'Not found' }) };
+  try {
+    const result = await match.route.handle({ req, url, params: match.params, metrics });
+    const body = result.contentType ? String(result.body) : JSON.stringify(result.body);
+    return { route: match.route.path, status: result.status ?? 200, contentType: result.contentType ?? JSON_TYPE, body };
+  } catch (error) {
+    const { status, message } = errorResponse(error);
+    return { route: match.route.path, status, contentType: JSON_TYPE, body: JSON.stringify({ error: message }), error };
+  }
+}
+
+/**
+ * @param {{ logger?: Logger, metrics?: Metrics }} [options]
+ */
+export function createServer({ logger = createLogger({ level: parseLevel(process.env.LOG_LEVEL, 'silent') }), metrics = createMetrics() } = {}) {
   return http.createServer(async (req, res) => {
-    const url = new URL(req.url, 'http://localhost');
-    const parts = url.pathname.split('/').filter(Boolean);
-    try {
-      if (parts[0] === 'api') return await routeApi(req, res, url, parts.slice(1));
-      return await serveStatic(res, url.pathname);
-    } catch (error) {
-      if (error.code === 'NOT_FOUND') return sendJson(res, 404, { error: error.message });
-      if (error.code === 'INVALID_ORDER' || error instanceof RangeError || error instanceof SyntaxError) {
-        return sendJson(res, 400, { error: error.message });
-      }
-      return sendJson(res, 500, { error: 'Internal error' });
-    }
+    const started = process.hrtime.bigint();
+    const { requestId, traceId } = requestContext(req.headers);
+    const log = logger.child(traceId ? { requestId, traceId } : { requestId });
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    const method = req.method ?? 'GET';
+    const result = await dispatch(req, url, metrics);
+
+    res.writeHead(result.status, { 'content-type': result.contentType, [REQUEST_ID_HEADER]: requestId });
+    res.end(result.body);
+
+    const durationSeconds = Number(process.hrtime.bigint() - started) / 1e9;
+    metrics.observeRequest({ method, route: result.route, status: result.status, durationSeconds });
+    const fields = { method, route: result.route, status: result.status, durationMs: Math.round(durationSeconds * 1e5) / 100 };
+    if (result.status >= 500) log.error('request failed', { ...fields, err: result.error });
+    else log.info('request completed', fields);
   });
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const logger = createLogger({ level: parseLevel(process.env.LOG_LEVEL, 'info') });
   const port = Number(process.env.PORT ?? 3000);
-  createServer().listen(port, () => console.log(`OBR synthetic model listening on http://localhost:${port}`));
+  const server = createServer({ logger });
+  server.listen(port, () => logger.info('OBR synthetic model listening', { url: `http://localhost:${port}` }));
+  // Close cleanly so `node --cpu-prof` (npm run profile) can write its profile on exit.
+  for (const signal of /** @type {const} */ (['SIGINT', 'SIGTERM'])) {
+    process.once(signal, () => {
+      logger.info('shutting down', { signal });
+      server.close(() => process.exit(0));
+      server.closeAllConnections();
+    });
+  }
 }

@@ -1,0 +1,11 @@
+{
+  "path": ["src", "scripts", "tests", "public"],
+  "format": ["javascript", "css", "markup"],
+  "ignore": ["**/.baseline/**", "**/out/**", "**/node_modules/**"],
+  "minTokens": 50,
+  "minLines": 5,
+  "threshold": 3,
+  "reporters": ["console"],
+  "absolute": false,
+  "gitignore": true
+}

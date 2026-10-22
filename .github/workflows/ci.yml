@@ -13,6 +13,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  quality:
+    name: Lint, types, format, dead code, duplication, docs, coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      - name: Dead code and unused dependencies
+        run: npm run deadcode
+      - name: Duplicate code
+        run: npm run duplication
+      - name: AGENTS.md and docs match the code
+        run: npm run docs:check
+      - name: No oversized files
+        run: npm run files:check
+      - name: Tests with coverage thresholds
+        run: npm run test:coverage
+
   test:
     name: Unit and API tests
     runs-on: ubuntu-latest

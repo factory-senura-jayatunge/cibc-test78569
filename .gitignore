@@ -1,8 +1,32 @@
-# Generated evidence (impact reports, regression results, release pack)
+# Generated evidence (impact reports, regression results, release pack, profiles)
 out/
+coverage/
+*.cpuprofile
+*.heapprofile
 
+# Dependencies
 node_modules/
+
+# Secrets and local environment. .env.example is the committed template.
 .env
 .env.*
+!.env.example
+*.pem
+*.key
+
+# Editors and IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Operating systems
 .DS_Store
+Thumbs.db
+
+# Logs and caches
 *.log
+npm-debug.log*
+.eslintcache
+*.tsbuildinfo

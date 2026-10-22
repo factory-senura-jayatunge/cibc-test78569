@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Records the current tree as the "last release" so impact analysis and demo resets work without git history.
 import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

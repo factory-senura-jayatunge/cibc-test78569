@@ -1,6 +1,12 @@
 # API reference
 
-The API serves JSON at `/api/*` on port 3000 (`PORT` overrides it). The statement portal is served from `/`. Every response uses `content-type: application/json; charset=utf-8`.
+The API serves JSON at `/api/*` on port 3000 (`PORT` overrides it). The statement portal is served from `/`. Every response uses `content-type: application/json; charset=utf-8`, except `/api/metrics`, which uses the Prometheus text format. The machine-readable schema is [openapi.yaml](openapi.yaml).
+
+## Request IDs and logs
+
+Every response has an `X-Request-ID` header. If the request sends a safe `X-Request-ID` (1 to 128 letters, digits, `.`, `_`, `:`, or `-`), the server reuses it. Otherwise it generates a UUID. A W3C `traceparent` header contributes its trace ID as `traceId`.
+
+`npm start` writes one JSON line per request to stdout, with `requestId`, `method`, `route` (the template, such as `/api/statements/:accountId`), `status`, and `durationMs`. 5xx responses are logged as `request failed` with the error. Account numbers are masked (`WG-****5520`) and client names are redacted. `LOG_LEVEL` sets the level: `debug`, `info` (the default for `npm start`), `warn`, `error`, or `silent`.
 
 > [!WARNING]
 > The API has no authentication. It is a model and must not be exposed outside a local machine. See [SECURITY.md](../SECURITY.md).
@@ -19,6 +25,19 @@ Errors return `{ "error": "<message>" }`.
 
 ```json
 { "status": "ok" }
+```
+
+## `GET /api/metrics`
+
+Prometheus metrics for this process. Labels use route templates, never raw paths, so account numbers stay out of metrics. Unmatched API paths share the `unmatched` route label, and portal files share `static`.
+
+```text
+# TYPE http_requests_total counter
+http_requests_total{method="GET",route="/api/statements/:accountId",status="200"} 3
+# TYPE http_request_duration_seconds histogram
+http_request_duration_seconds_bucket{method="GET",route="/api/statements/:accountId",le="0.005"} 3
+http_request_duration_seconds_count{method="GET",route="/api/statements/:accountId"} 3
+process_uptime_seconds 42.1
 ```
 
 ## `GET /api/accounts`

@@ -1,17 +1,22 @@
 #!/usr/bin/env node
+// @ts-check
 // Change-impact analysis: which regression suites does this change actually need?
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT, buildImportGraph, couplingKind, domainOf, listFiles, readJson, sha256 } from './lib/graph.js';
+import { flagValue } from './lib/cli.js';
 
-const args = process.argv.slice(2);
-const flag = (name) => {
-  const index = args.indexOf(name);
-  return index === -1 ? undefined : args[index + 1];
-};
+/** @typedef {import('./lib/graph.js').Catalog} Catalog */
+/** @typedef {import('./lib/graph.js').Suite} Suite */
+/** @typedef {import('./lib/graph.js').SelectedSuite} SelectedSuite */
+/** @typedef {import('./lib/graph.js').Coupling} Coupling */
 
+const flag = flagValue;
+
+/** @param {string} base */
 function changedFromGit(base) {
+  /** @param {string[]} gitArgs */
   const run = (gitArgs) => execFileSync('git', gitArgs, { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean);
   return [...new Set([...run(['diff', '--name-only', base]), ...run(['ls-files', '--others', '--exclude-standard'])])];
 }
@@ -23,9 +28,7 @@ function changedFromBaseline() {
     process.exit(2);
   }
   const manifest = readJson('.baseline/manifest.json');
-  const current = Object.fromEntries(
-    ['src', 'tests', 'public', 'regression'].flatMap((dir) => listFiles(dir)).map((file) => [file, sha256(file)]),
-  );
+  const current = Object.fromEntries(['src', 'tests', 'public', 'regression'].flatMap((dir) => listFiles(dir)).map((file) => [file, sha256(file)]));
   const changed = Object.keys(current).filter((file) => manifest.files[file] !== current[file]);
   const deleted = Object.keys(manifest.files).filter((file) => !(file in current));
   return [...changed, ...deleted].sort();
@@ -36,10 +39,12 @@ const base = flag('--base');
 const changed = explicit ? explicit.split(',').map((file) => file.trim()) : base ? changedFromGit(base) : changedFromBaseline();
 const source = base ? `git diff ${base}` : explicit ? '--files' : 'release baseline (.baseline/manifest.json)';
 
-const catalog = readJson('regression/catalog.json');
+const catalog = /** @type {Catalog} */ (readJson('regression/catalog.json'));
 const { dependents } = buildImportGraph();
 
+/** @type {Map<string, string | null>} */
 const parent = new Map();
+/** @type {string[]} */
 const queue = [];
 for (const file of changed) {
   if (dependents.has(file) && !parent.has(file)) {
@@ -48,8 +53,8 @@ for (const file of changed) {
   }
 }
 while (queue.length) {
-  const file = queue.shift();
-  for (const dependent of dependents.get(file)) {
+  const file = /** @type {string} */ (queue.shift());
+  for (const dependent of dependents.get(file) ?? []) {
     if (parent.has(dependent)) continue;
     parent.set(dependent, file);
     queue.push(dependent);
@@ -57,17 +62,22 @@ while (queue.length) {
 }
 const impacted = [...parent.keys()];
 
+/** @param {string} file */
 const chainTo = (file) => {
+  /** @type {string[]} */
   const chain = [];
-  for (let node = file; node; node = parent.get(node)) chain.unshift(node);
+  for (let node = /** @type {string | null | undefined} */ (file); node; node = parent.get(node)) chain.unshift(node);
   return chain;
 };
 
+/** @type {SelectedSuite[]} */
 const selected = [];
+/** @type {{ id: string, owner: string, productionMinutes: number }[]} */
 const skipped = [];
 for (const suite of catalog.suites) {
   const hit = suite.covers.find((file) => parent.has(file));
   let reason;
+  /** @type {string[]} */
   let chain = [];
   if (hit) {
     chain = chainTo(hit);
@@ -82,6 +92,7 @@ for (const suite of catalog.suites) {
 const registered = new Set(catalog.suites.map((suite) => suite.file));
 const unregisteredTests = changed.filter((file) => file.startsWith('tests/') && !registered.has(file) && existsSync(join(ROOT, file)));
 
+/** @type {Coupling[]} */
 const couplings = [];
 const seen = new Set();
 for (const suite of selected) {
@@ -97,12 +108,21 @@ for (const suite of selected) {
   }
 }
 
+/** @param {{ productionMinutes: number }[]} suites */
 const sum = (suites) => suites.reduce((total, suite) => total + suite.productionMinutes, 0);
 const fullMinutes = sum(catalog.suites);
 const scopedMinutes = sum(selected);
+/** @param {number} minutes */
 const hours = (minutes) => (minutes / 60).toFixed(1);
 const saved = fullMinutes ? Math.round((1 - scopedMinutes / fullMinutes) * 100) : 0;
-const impactedLobs = [...new Set(impacted.map(domainOf).filter((domain) => domain.startsWith('lob:')).map((d) => d.slice(4)))];
+const impactedLobs = [
+  ...new Set(
+    impacted
+      .map(domainOf)
+      .filter((domain) => domain.startsWith('lob:'))
+      .map((d) => d.slice(4)),
+  ),
+];
 const runtimeChanged = changed.some((file) => file.startsWith('src/') || file.startsWith('tests/') || file.startsWith('public/'));
 
 const result = {
@@ -152,6 +172,10 @@ const md = [
 ].join('\n');
 writeFileSync(join(ROOT, `out/${outName}-report.md`), `${md}\n`);
 
+/**
+ * @param {unknown} value
+ * @param {number} width
+ */
 const pad = (value, width) => String(value).padEnd(width);
 console.log(`\nChange impact analysis  (compared against ${source})\n`);
 console.log(`Changed files (${changed.length}):`);

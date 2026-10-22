@@ -1,7 +1,7 @@
 name: Change request
 description: A business change with numbered acceptance criteria
-title: "<ID>: <short title>"
-labels: ["change-request"]
+title: '<ID>: <short title>'
+labels: ['change-request']
 body:
   - type: markdown
     attributes:
