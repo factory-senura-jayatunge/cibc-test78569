@@ -17,11 +17,45 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-      - run: npm run regression:full
+      # One retry separates flaky suites from real failures. Flaky suites pass the run but are
+      # reported in the summary and as warnings; see docs/runbooks/README.md#flaky-suite.
+      - run: npm run regression:full -- --retries 1
+      - name: Publish results
+        if: always()
+        run: |
+          if [ -f out/regression.md ]; then cat out/regression.md >> "$GITHUB_STEP_SUMMARY"; fi
+          if [ -f out/regression.json ]; then
+            node -e 'for (const id of require("./out/regression.json").flaky ?? []) console.log(`::warning title=Flaky regression suite::${id} failed and then passed on retry`)'
+          fi
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: full-regression
-          path: out/regression.json
+          path: |
+            out/regression.json
+            out/regression.md
           if-no-files-found: ignore
+
+  alert:
+    name: Open or update the regression failure issue
+    needs: full-regression
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Notify through a GitHub issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Nightly regression failed"
+          body="The nightly full regression failed on $(date -u +%F). Run: $RUN_URL. Follow docs/runbooks/README.md#nightly-regression-failed."
+          number=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$title" --label bug --body "$body"
+          fi

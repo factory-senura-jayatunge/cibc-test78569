@@ -1,0 +1,21 @@
+# Generated output and the release baseline (release managers own .baseline/)
+.baseline/
+out/
+coverage/
+node_modules/
+package-lock.json
+
+# Prose and hand-aligned data: reviewed by people, not reformatted
+*.md
+regression/catalog.json
+
+# Formatting deferred for release-baseline files. Impact analysis compares file hashes
+# with .baseline/, so a cosmetic reformat shows up as a changed file in the release
+# evidence and can widen scoped regression (fees.js alone pulls in every line of
+# business). Format each file in the next change that touches it, then delete its line.
+public/index.html
+public/styles.css
+src/platform/fees.js
+tests/ie-statements.test.js
+tests/platform-pricing.test.js
+tests/wg-statements.test.js

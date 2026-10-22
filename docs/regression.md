@@ -49,7 +49,7 @@ Outputs:
 | --- | --- | --- |
 | `out/impact.json`, `out/impact-report.md` | `npm run impact` (baseline or `--base`) | Changed files, impacted files, selected and skipped suites with reasons, hours, percent saved |
 | `out/impact-prediction.json`, `out/impact-prediction-report.md` | `npm run impact -- --files ...` | The same, for planned work. Kept separate so a prediction never changes what scoped regression runs |
-| `out/regression.json` | `npm run regression:*` | Pass or fail per suite, with local and production-equivalent timings |
+| `out/regression.json`, `out/regression.md` | `npm run regression:*` | Pass, fail, or flaky per suite, with attempts and local and production-equivalent timings. The Markdown version is the CI job summary |
 
 ## Running regression
 
@@ -58,9 +58,14 @@ npm run impact               # select suites for the current change
 npm run regression:scoped    # run only those suites
 npm run regression:full      # run all 13 suites
 node scripts/regression.js --suites pb-credit,pb-statements   # run named suites
+node scripts/regression.js --all --retries 1                  # what the nightly run does
 ```
 
 The runner exits non-zero if any suite fails, and prints the failing suite's output.
+
+### Flaky suites
+
+`--retries N` reruns a failing suite up to `N` more times. A suite that fails and then passes is marked `FLAKY`: it counts as passed, but it is listed in the console, under `flaky` in `out/regression.json`, in the job summary, and as a warning annotation in the nightly run. Add `--fail-on-flaky` to make a flaky result fail the run, which is how you confirm a fix. Pull-request regression runs without retries, so a flaky suite blocks the merge until someone looks at it. See [the flaky-suite runbook](runbooks/README.md#flaky-suite).
 
 ## Example: why boundaries matter
 

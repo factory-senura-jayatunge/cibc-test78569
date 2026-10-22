@@ -16,7 +16,18 @@ Only `main` is supported.
 
 - Never commit real client names, account numbers, or other personal data. All test data must be synthetic.
 - New code must not write unmasked account numbers or client names to logs or audit detail.
-- Never commit secrets, tokens, or `.env` files.
+- Never commit secrets, tokens, or `.env` files. `.env.example` is the committed template, and it holds no secrets.
+- OBR itself needs no secrets. CI secrets, such as `FACTORY_API_KEY` for the Droid review workflow, live in GitHub Actions secrets and are referenced as `${{ secrets.NAME }}`. Locally, keep them in your OS keychain or an untracked `.env`.
+- Runtime code logs through `src/observability/logger.js`. It masks account numbers and redacts client-name and credential fields. The `no-console` lint rule blocks direct `console` use under `src/`.
+
+## Automated security checks
+
+| Check | Where |
+| --- | --- |
+| CodeQL static analysis | `.github/workflows/codeql.yml` |
+| OWASP ZAP baseline scan of the running app | `.github/workflows/dast.yml` |
+| Droid security review on pull requests | `.github/workflows/droid-review.yml` |
+| Dependency updates, held 7 days after release | `.github/dependabot.yml` |
 
 ## Known gaps
 
@@ -28,3 +39,4 @@ These are tracked and accepted for a local model. A production deployment would 
 | The statement audit event writes the client name to audit detail | `src/platform/statements.js` |
 | The audit log is in memory and is lost on restart | `src/platform/audit.js` |
 | `AUDIT_STDOUT=1` writes audit detail to stdout | `src/platform/audit.js` |
+| Responses set no security headers (CSP, `X-Content-Type-Options`, `X-Frame-Options`), so the ZAP baseline scan reports warnings | `src/server.js` |

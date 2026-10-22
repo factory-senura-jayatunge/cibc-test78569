@@ -6,6 +6,7 @@ Every change links to its change request and release note. Releases follow the `
 
 - **WG-1042** (#1): Wood Gundy statements show the effective annual advisory fee rate in basis points, and advisory fees for the trailing four quarters. [Release note](docs/releases/WG-1042.md)
 - **PB-2210** (#2): Private Banking credit summaries and statements classify loan-to-value as `ok`, `watch`, or `margin-call-warning`. [Release note](docs/releases/PB-2210.md)
+- **Tooling:** quality gates (`npm run check`: ESLint with module-boundary, complexity, and size rules; Prettier; strict opt-in type checking; knip; jscpd; docs drift; file size; coverage thresholds) in CI and a pre-commit hook. Structured, scrubbed request logs with `X-Request-ID`, `GET /api/metrics`, and `npm run profile`. Flaky-suite detection and failure issues for the nightly regression. CodeQL, ZAP baseline, Droid review, and Dependabot workflows. OpenAPI schema, runbooks, a dev container, and agent skills. No change to line-of-business or platform behavior. API routes now match their full path, so trailing extra segments (for example `/api/credit/PB-12003885/x`) return 404 instead of being ignored.
 
 ## 2026.10: release baseline
 

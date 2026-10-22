@@ -1,0 +1,307 @@
+openapi: 3.1.0
+info:
+  title: OBR synthetic wealth platform API
+  version: 2026.11.0
+  summary: Statements, order previews, credit, and mandate drift for four lines of business.
+  description: |
+    Synthetic model built for a Factory demo. Every account, name, and figure is fictional.
+    The API has no authentication and must not be exposed outside a local machine (see SECURITY.md).
+    Narrative examples are in docs/api.md. Keep this file and docs/api.md in step with src/server.js.
+servers:
+  - url: http://localhost:3000
+    description: Local (`npm start`; `PORT` overrides the port)
+tags:
+  - name: operations
+  - name: accounts
+  - name: investors-edge
+  - name: private-banking
+  - name: pic
+paths:
+  /api/health:
+    get:
+      tags: [operations]
+      operationId: getHealth
+      summary: Liveness check
+      responses:
+        '200':
+          description: The process is serving requests.
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, const: ok }
+  /api/metrics:
+    get:
+      tags: [operations]
+      operationId: getMetrics
+      summary: Prometheus metrics
+      description: Request counts and latency histograms by route template, plus process uptime and memory.
+      responses:
+        '200':
+          description: Prometheus text exposition format 0.0.4.
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/XRequestId' }
+          content:
+            text/plain:
+              schema: { type: string }
+              example: |
+                http_requests_total{method="GET",route="/api/statements/:accountId",status="200"} 3
+  /api/accounts:
+    get:
+      tags: [accounts]
+      operationId: listAccounts
+      summary: List account summaries
+      parameters:
+        - name: lob
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/LineOfBusiness' }
+      responses:
+        '200':
+          description: Account summaries, optionally filtered by line of business.
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accounts]
+                properties:
+                  accounts:
+                    type: array
+                    items: { $ref: '#/components/schemas/AccountSummary' }
+  /api/statements/{accountId}:
+    get:
+      tags: [accounts]
+      operationId: getStatement
+      summary: Quarterly statement for any account
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - name: quarter
+          in: query
+          required: false
+          schema: { type: string, pattern: '^\d{4}-Q[1-4]$', default: 2026-Q3 }
+      responses:
+        '200':
+          description: Shared statement lines plus line-of-business sections.
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [statement]
+                properties:
+                  statement: { $ref: '#/components/schemas/Statement' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/orders/preview:
+    post:
+      tags: [investors-edge]
+      operationId: previewOrder
+      summary: Preview an Investor's Edge order (nothing is placed)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrderRequest' }
+      responses:
+        '200':
+          description: Priced order preview.
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [order]
+                properties:
+                  order: { $ref: '#/components/schemas/OrderPreview' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/credit/{accountId}:
+    get:
+      tags: [private-banking]
+      operationId: getCreditSummary
+      summary: Private Banking credit facility summary
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+      responses:
+        '200':
+          description: Limit, drawn amount, collateral, and loan-to-value status.
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [credit]
+                properties:
+                  credit: { $ref: '#/components/schemas/CreditSummary' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/mandates/{accountId}/drift:
+    get:
+      tags: [pic]
+      operationId: getMandateDrift
+      summary: PIC mandate allocation drift
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+      responses:
+        '200':
+          description: Target versus actual allocation per asset class.
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [drift]
+                properties:
+                  drift: { $ref: '#/components/schemas/DriftReport' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+components:
+  headers:
+    XRequestId:
+      description: >-
+        Correlation ID. Echoes a safe incoming `X-Request-ID` (1 to 128 of `A-Z a-z 0-9 . _ : -`),
+        otherwise a new UUID. It appears as `requestId` on every log line for the request.
+      schema: { type: string }
+  parameters:
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[A-Z]{2,3}-\d+$', examples: [WG-30115520] }
+  responses:
+    BadRequest:
+      description: Invalid order, invalid quarter, wrong account type for the endpoint, or malformed JSON.
+      headers:
+        X-Request-ID: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Unknown account, unknown symbol, unknown route, or an account with no mandate.
+      headers:
+        X-Request-ID: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    InternalError:
+      description: Unexpected error. The message is always `Internal error`; find details in the logs by request ID.
+      headers:
+        X-Request-ID: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    LineOfBusiness:
+      type: string
+      enum: [investors-edge, wood-gundy, pic, private-banking]
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+    AccountSummary:
+      type: object
+      required: [id, lob, holder, type]
+      properties:
+        id: { type: string, examples: [WG-30115520] }
+        lob: { $ref: '#/components/schemas/LineOfBusiness' }
+        holder: { type: string, description: Synthetic client name. }
+        type: { type: string, examples: [Fee-based advisory] }
+    StatementLine:
+      type: object
+      required: [label, amount]
+      properties:
+        label: { type: string }
+        amount: { type: number, description: CAD, rounded to cents. Negative for charges. }
+    StatementSection:
+      type: object
+      required: [title, rows]
+      properties:
+        title: { type: string }
+        rows:
+          type: array
+          items:
+            type: object
+            required: [label, value]
+            properties:
+              label: { type: string }
+              value: { type: [number, string] }
+    Statement:
+      type: object
+      required: [accountId, lob, holder, quarter, lines, total, sections]
+      properties:
+        accountId: { type: string }
+        lob: { $ref: '#/components/schemas/LineOfBusiness' }
+        holder: { type: string }
+        quarter: { type: string, examples: [2026-Q3] }
+        lines:
+          type: array
+          items: { $ref: '#/components/schemas/StatementLine' }
+        total: { type: number }
+        sections:
+          type: array
+          items: { $ref: '#/components/schemas/StatementSection' }
+    OrderRequest:
+      type: object
+      required: [accountId, symbol, side, qty]
+      properties:
+        accountId: { type: string, examples: [IE-58210043] }
+        symbol: { type: string, enum: [NSE-CDNEQ, NSE-USEQ, NSE-AGGBD] }
+        side: { type: string, enum: [buy, sell] }
+        qty: { type: integer, minimum: 1 }
+    OrderPreview:
+      type: object
+      required: [accountId, symbol, side, qty, price, gross, commission, estimatedNet]
+      properties:
+        accountId: { type: string }
+        symbol: { type: string }
+        side: { type: string, enum: [buy, sell] }
+        qty: { type: integer }
+        price: { type: number }
+        gross: { type: number }
+        commission: { type: number }
+        estimatedNet: { type: number }
+    CreditSummary:
+      type: object
+      required: [accountId, limit, drawn, available, collateralAccount, loanToValue, ltvStatus]
+      properties:
+        accountId: { type: string }
+        limit: { type: number }
+        drawn: { type: number }
+        available: { type: number }
+        collateralAccount: { type: string }
+        loanToValue: { type: number, description: Ratio rounded to four decimals. }
+        ltvStatus:
+          type: string
+          enum: [ok, watch, margin-call-warning]
+          description: '`ok` below 0.60, `watch` from 0.60 to 0.70 inclusive, `margin-call-warning` above 0.70.'
+    DriftReport:
+      type: object
+      required: [accountId, mandate, rows, needsRebalance]
+      properties:
+        accountId: { type: string }
+        mandate: { type: string, examples: [Balanced Income] }
+        rows:
+          type: array
+          items:
+            type: object
+            required: [assetClass, target, actual, drift]
+            properties:
+              assetClass: { type: string, enum: [equity, fixed-income, cash] }
+              target: { type: number }
+              actual: { type: number }
+              drift: { type: number }
+        needsRebalance: { type: boolean }

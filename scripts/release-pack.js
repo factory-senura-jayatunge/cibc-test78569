@@ -1,32 +1,58 @@
 #!/usr/bin/env node
+// @ts-check
 // Builds a self-contained release-readiness page from the evidence the pipeline already wrote to out/.
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT, readJson } from './lib/graph.js';
 
+/** @typedef {import('./lib/graph.js').ImpactResult} ImpactResult */
+/** @typedef {import('./lib/graph.js').RegressionResult} RegressionResult */
+/** @typedef {import('./lib/graph.js').Catalog} Catalog */
+/** @typedef {{ id: string, lineOfBusiness?: string, acceptance?: string, review?: string, decision?: string }} CheckedChange */
+
+/** @param {string} file */
 const outPath = (file) => join(ROOT, 'out', file);
+/**
+ * @template T
+ * @param {string} file
+ * @returns {T | null}
+ */
 const load = (file) => (existsSync(outPath(file)) ? JSON.parse(readFileSync(outPath(file), 'utf8')) : null);
 
-const impact = load('impact.json');
+const impact = /** @type {ImpactResult | null} */ (load('impact.json'));
 if (!impact) {
   console.error('No out/impact.json. Run `npm run impact` first.');
   process.exit(2);
 }
-const regression = load('regression.json');
-const checks = load('checks.json');
-const approval = load('approval.json');
-const catalog = readJson('regression/catalog.json');
-const notes = readdirSync(join(ROOT, 'out')).filter((file) => /^release-note-.+\.md$/.test(file)).sort();
+const regression = /** @type {RegressionResult | null} */ (load('regression.json'));
+const checks = /** @type {{ changes?: CheckedChange[] } | null} */ (load('checks.json'));
+const approval = /** @type {{ decision?: string } | null} */ (load('approval.json'));
+const catalog = /** @type {Catalog} */ (readJson('regression/catalog.json'));
+const notes = readdirSync(join(ROOT, 'out'))
+  .filter((file) => /^release-note-.+\.md$/.test(file))
+  .sort();
 
-const esc = (value) => String(value).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-const inline = (value) => esc(value).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+/** @type {Record<string, string>} */
+const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
+/** @param {unknown} value */
+const esc = (value) => String(value).replace(/[&<>"]/g, (c) => HTML_ESCAPES[c] ?? c);
+/** @param {unknown} value */
+const inline = (value) =>
+  esc(value)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+/** @param {string} line */
 const isBlock = (line) => /^(#{1,6} |\||\s*[-*] |\d+\. |```)/.test(line);
 
+/** @param {string} text */
 function markdown(text) {
   const lines = text.split('\n');
+  /** @type {string[]} */
   const html = [];
   let i = 0;
+  /** @param {(line: string) => boolean} test */
   const take = (test) => {
+    /** @type {string[]} */
     const block = [];
     while (i < lines.length && test(lines[i])) block.push(lines[i++]);
     return block;
@@ -36,7 +62,7 @@ function markdown(text) {
     if (!line.trim()) {
       i += 1;
     } else if (/^#{1,6} /.test(line)) {
-      const level = Math.min(line.match(/^#+/)[0].length + 2, 6);
+      const level = Math.min((line.match(/^#+/)?.[0].length ?? 1) + 2, 6);
       html.push(`<h${level}>${inline(line.replace(/^#+ /, ''))}</h${level}>`);
       i += 1;
     } else if (line.startsWith('```')) {
@@ -46,11 +72,23 @@ function markdown(text) {
       html.push(`<pre>${esc(block.join('\n'))}</pre>`);
     } else if (line.startsWith('|')) {
       const rows = take((l) => l.startsWith('|'));
-      const cells = (row) => row.replace(/^\||\|$/g, '').split('|').map((cell) => cell.trim());
+      /** @param {string} row */
+      const cells = (row) =>
+        row
+          .replace(/^\||\|$/g, '')
+          .split('|')
+          .map((cell) => cell.trim());
       const [head, , ...body] = rows;
       html.push(
-        `<table><thead><tr>${cells(head).map((c) => `<th>${inline(c)}</th>`).join('')}</tr></thead><tbody>${body
-          .map((row) => `<tr>${cells(row).map((c) => `<td>${inline(c)}</td>`).join('')}</tr>`)
+        `<table><thead><tr>${cells(head ?? '')
+          .map((c) => `<th>${inline(c)}</th>`)
+          .join('')}</tr></thead><tbody>${body
+          .map(
+            (row) =>
+              `<tr>${cells(row)
+                .map((c) => `<td>${inline(c)}</td>`)
+                .join('')}</tr>`,
+          )
           .join('')}</tbody></table>`,
       );
     } else if (/^\s*[-*] /.test(line)) {
@@ -69,17 +107,27 @@ function markdown(text) {
   return html.join('\n');
 }
 
-const LOB_NAMES = { 'investors-edge': "Investor's Edge", 'wood-gundy': 'Wood Gundy', pic: 'PIC', 'private-banking': 'Private Banking', platform: 'Platform' };
+/** @type {Record<string, string>} */
+const LOB_NAMES = {
+  'investors-edge': "Investor's Edge",
+  'wood-gundy': 'Wood Gundy',
+  pic: 'PIC',
+  'private-banking': 'Private Banking',
+  platform: 'Platform',
+};
+/** @param {string | undefined} value */
 const lobName = (value) => LOB_NAMES[String(value ?? '').toLowerCase()] ?? value ?? '';
+/** @param {number} minutes */
 const hours = (minutes) => (minutes / 60).toFixed(1);
 const results = regression?.results ?? [];
 const passed = results.filter((r) => r.passed).length;
 const allPassed = results.length > 0 && passed === results.length;
 const scopedPct = impact.fullMinutes ? (impact.scopedMinutes / impact.fullMinutes) * 100 : 0;
 const changeCount = checks?.changes?.length ?? notes.length;
-const status = approval?.decision === 'approved'
-  ? { label: 'Approved by a person · ready to merge', cls: 'ok' }
-  : { label: 'Awaiting human approval', cls: 'wait' };
+const status =
+  approval?.decision === 'approved'
+    ? { label: 'Approved by a person · ready to merge', cls: 'ok' }
+    : { label: 'Awaiting human approval', cls: 'wait' };
 
 const kpis = [
   ['Change requests', changeCount],
@@ -92,14 +140,17 @@ const kpis = [
 
 const checksTable = checks?.changes?.length
   ? `<section><h2>Changes and independent checks</h2><table><thead><tr><th>Change</th><th>Line of business</th><th>Acceptance</th><th>Review</th><th>Agent decision</th></tr></thead><tbody>${checks.changes
-      .map((c) => `<tr><td><code>${esc(c.id)}</code></td><td>${esc(lobName(c.lineOfBusiness))}</td><td>${esc(c.acceptance ?? '')}</td><td>${esc(c.review ?? '')}</td><td>${esc(c.decision ?? '')}</td></tr>`)
+      .map(
+        (c) =>
+          `<tr><td><code>${esc(c.id)}</code></td><td>${esc(lobName(c.lineOfBusiness))}</td><td>${esc(c.acceptance ?? '')}</td><td>${esc(c.review ?? '')}</td><td>${esc(c.decision ?? '')}</td></tr>`,
+      )
       .join('')}</tbody></table></section>`
   : '';
 
 const suites = impact.selected
   .map((s) => {
     const r = results.find((x) => x.id === s.id);
-    const verdict = r ? (r.passed ? 'PASS' : 'FAIL') : '–';
+    const verdict = r ? (r.flaky ? 'FLAKY' : r.passed ? 'PASS' : 'FAIL') : '–';
     return `<tr><td><code>${esc(s.id)}</code></td><td>${esc(lobName(s.owner))}</td><td>${s.productionMinutes} min</td><td class="${verdict === 'FAIL' ? 'bad' : ''}">${verdict}</td><td>${inline(s.reason.replaceAll(' -> ', ' → '))}</td></tr>`;
   })
   .join('');

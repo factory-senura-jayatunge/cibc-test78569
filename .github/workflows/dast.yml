@@ -1,0 +1,37 @@
+name: DAST
+
+# Starts the API and portal locally on the runner and runs an OWASP ZAP baseline scan against them.
+# The scan is passive (spider plus response inspection), so it is safe on every pull request.
+# Findings are published as the zap-baseline-report artifact and do not fail the job; the
+# expected warnings (missing security headers) are listed under "Known gaps" in SECURITY.md.
+
+on:
+  pull_request:
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  zap-baseline:
+    name: OWASP ZAP baseline scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Start OBR
+        run: |
+          LOG_LEVEL=warn PORT=3000 node src/server.js &
+          for _ in $(seq 1 30); do curl -fsS http://localhost:3000/api/health && exit 0; sleep 1; done
+          exit 1
+      - name: ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: http://localhost:3000/
+          cmd_options: -a -j
+          allow_issue_writing: false
+          artifact_name: zap-baseline-report

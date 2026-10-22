@@ -18,21 +18,26 @@ OBR is the wealth platform behind four lines of business. They share one codebas
 
 ## Getting started
 
-You need Node 22 or later. There are no dependencies, so there is no install step.
+You need Node 22 or later. The application has no runtime dependencies, so tests and the server run without an install step.
 
 ```bash
 npm test     # unit and API tests
 npm start    # portal and API at http://localhost:3000
+npm ci       # dev tooling for the quality gates, plus the pre-commit hook
+npm run check
 ```
 
-Set `PORT` to change the port. Set `AUDIT_STDOUT=1` to echo audit events to the console.
+Set `PORT` to change the port and `LOG_LEVEL` to change the log level. Set `AUDIT_STDOUT=1` to echo audit events to the console. `.env.example` lists every variable. A dev container is in `.devcontainer/`.
 
 ## Commands
 
 | Command | What it does |
 | --- | --- |
 | `npm test` | Runs all unit and API tests with `node:test` |
-| `npm start` | Starts the HTTP API and the statement portal |
+| `npm start` | Starts the HTTP API and the statement portal. Logs one JSON line per request |
+| `npm run check` | Runs every quality gate: lint, format, types, dead code, duplication, docs drift, file size, and coverage thresholds |
+| `npm run test:coverage` | Runs the tests with coverage thresholds |
+| `npm run profile` | CPU-profiles the API under a short load and prints the hottest functions |
 | `npm run impact` | Change-impact analysis against the release baseline. Writes `out/impact.json` and `out/impact-report.md` |
 | `npm run impact -- --files a,b` | Predicts the regression scope of files you plan to change. Writes `out/impact-prediction.json` |
 | `npm run impact -- --base <ref>` | Change-impact analysis against a Git ref, as CI does for pull requests |
@@ -66,13 +71,14 @@ Lines of business depend on the platform. They must not depend on each other, an
 | Method | Path | Returns |
 | --- | --- | --- |
 | `GET` | `/api/health` | Liveness check |
+| `GET` | `/api/metrics` | Prometheus metrics: request counts and latency by route |
 | `GET` | `/api/accounts?lob=<lob>` | Account summaries, optionally filtered by line of business |
 | `GET` | `/api/statements/:accountId?quarter=YYYY-Qn` | Quarterly statement for any account |
 | `POST` | `/api/orders/preview` | Investor's Edge order preview with commission and net amount |
 | `GET` | `/api/credit/:accountId` | Private Banking credit facility summary |
 | `GET` | `/api/mandates/:accountId/drift` | PIC mandate allocation drift |
 
-Request and response examples are in [docs/api.md](docs/api.md).
+Request and response examples are in [docs/api.md](docs/api.md). The OpenAPI schema is [docs/openapi.yaml](docs/openapi.yaml). Every response carries an `X-Request-ID` header that matches the `requestId` in the logs.
 
 ## How changes ship
 
@@ -91,13 +97,14 @@ Most changes run a fraction of the 18-hour catalogue. For example, the 2026.11 r
 ```text
 src/platform/          Shared core: accounts, pricing, fees, money, audit, statements
 src/lob/<lob>/         One folder per line of business; index.js is its public surface
-src/server.js          HTTP API and static portal
+src/server.js          HTTP API (route table) and static portal
+src/observability/     Structured logger, Prometheus metrics, request IDs
 public/                Statement portal (vanilla JS, no build)
 tests/                 One file per regression suite
 regression/catalog.json  Suite ownership, covered files, production-equivalent minutes
-scripts/               Impact analysis, scoped regression, coupling report, release pack
+scripts/               Impact analysis, scoped regression, coupling report, release pack, profiler, docs checks
 .baseline/             Release baseline: file manifest and snapshot of the last release
-.factory/              Droids and commands for agent-assisted delivery
+.factory/              Droids, commands, and skills for agent-assisted delivery
 docs/                  Architecture, lines of business, API, release process, regression
 ```
 
@@ -105,8 +112,12 @@ docs/                  Architecture, lines of business, API, release process, re
 
 | Workflow | Trigger | What it runs |
 | --- | --- | --- |
-| [CI](.github/workflows/ci.yml) | Every pull request and push to `main` | `npm test` and the coupling report. Pull requests also run impact analysis against the target branch and the scoped regression, and post the impact report to the job summary |
-| [Nightly regression](.github/workflows/nightly-regression.yml) | Daily at 06:00 UTC, or on demand | `npm run regression:full` |
+| [CI](.github/workflows/ci.yml) | Every pull request and push to `main` | The quality gates (`npm run check` steps), `npm test`, and the coupling report. Pull requests also run impact analysis against the target branch and the scoped regression, and post the impact report to the job summary |
+| [Nightly regression](.github/workflows/nightly-regression.yml) | Daily at 06:00 UTC, or on demand | `npm run regression:full -- --retries 1`. Flaky suites are reported. A scheduled failure opens or updates a **Nightly regression failed** issue |
+| [CodeQL](.github/workflows/codeql.yml) | Pull requests, pushes to `main`, weekly | Static security analysis (`security-extended` queries) |
+| [DAST](.github/workflows/dast.yml) | Pull requests, weekly, or on demand | OWASP ZAP baseline scan against the running API and portal |
+| [Droid Auto Review](.github/workflows/droid-review.yml) | Pull requests opened or marked ready | Automated code and security review comments. Needs the `FACTORY_API_KEY` secret |
+| [Dependabot](.github/dependabot.yml) | Weekly | Dev tooling and GitHub Actions updates, held for 7 days after release |
 
 ## Documentation
 
@@ -115,6 +126,7 @@ docs/                  Architecture, lines of business, API, release process, re
 - [API reference](docs/api.md)
 - [Release process](docs/release-process.md)
 - [Regression and impact analysis](docs/regression.md)
+- [Runbooks](docs/runbooks/README.md) and the [OpenAPI schema](docs/openapi.yaml)
 - [Change requests](docs/change-requests/) and [release notes](docs/releases/)
 - [Contributing](CONTRIBUTING.md), [security](SECURITY.md), and the [changelog](CHANGELOG.md)
 
