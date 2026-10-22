@@ -65,7 +65,7 @@ The runner exits non-zero if any suite fails, and prints the failing suite's out
 
 ### Flaky suites
 
-`--retries N` reruns a failing suite up to `N` more times. A suite that fails and then passes is marked `FLAKY`: it counts as passed, but it is listed in the console, under `flaky` in `out/regression.json`, in the job summary, and as a warning annotation in the nightly run. Add `--fail-on-flaky` to make a flaky result fail the run, which is how you confirm a fix. Pull-request regression runs without retries, so a flaky suite blocks the merge until someone looks at it. See [the flaky-suite runbook](runbooks/README.md#flaky-suite).
+`--retries N` reruns a failing suite up to `N` more times. A suite that fails and then passes is marked `FLAKY`: it counts as passed, but it is listed in the console, as `flaky: true` on its result in `out/regression.json`, in the job summary, and as a warning annotation in the nightly run. Add `--fail-on-flaky` to make a flaky result fail the run, which is how you confirm a fix. Pull-request regression runs without retries, so a flaky suite blocks the merge until someone looks at it. See [the flaky-suite runbook](runbooks/README.md#flaky-suite).
 
 ## Example: why boundaries matter
 

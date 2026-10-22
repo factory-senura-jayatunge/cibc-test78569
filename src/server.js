@@ -1,5 +1,6 @@
 // @ts-check
 import http from 'node:http';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,7 +15,7 @@ import { REQUEST_ID_HEADER, requestContext } from './observability/request-conte
 
 /** @typedef {import('./observability/logger.js').Logger} Logger */
 /** @typedef {ReturnType<typeof createMetrics>} Metrics */
-/** @typedef {{ status?: number, contentType?: string, body: unknown }} RouteResult */
+/** @typedef {{ contentType?: string, body: unknown }} RouteResult */
 /** @typedef {{ req: http.IncomingMessage, url: URL, params: Record<string, string>, metrics: Metrics }} RouteContext */
 /** @typedef {{ method: string, path: string, handle: (context: RouteContext) => RouteResult | Promise<RouteResult> }} Route */
 
@@ -26,6 +27,7 @@ const LOBS = {
   'private-banking': privateBanking,
 };
 const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
+const LOCAL_ENV_FILE = fileURLToPath(new URL('../.env', import.meta.url));
 /** @type {Record<string, string>} */
 const CONTENT_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -148,7 +150,7 @@ async function dispatch(req, url, metrics) {
   try {
     const result = await match.route.handle({ req, url, params: match.params, metrics });
     const body = result.contentType ? String(result.body) : JSON.stringify(result.body);
-    return { route: match.route.path, status: result.status ?? 200, contentType: result.contentType ?? JSON_TYPE, body };
+    return { route: match.route.path, status: 200, contentType: result.contentType ?? JSON_TYPE, body };
   } catch (error) {
     const { status, message } = errorResponse(error);
     return { route: match.route.path, status, contentType: JSON_TYPE, body: JSON.stringify({ error: message }), error };
@@ -156,9 +158,18 @@ async function dispatch(req, url, metrics) {
 }
 
 /**
- * @param {{ logger?: Logger, metrics?: Metrics }} [options]
+ * Loads local overrides from `.env` (see `.env.example`). Variables already set in the environment win.
+ * @param {string} [file]
  */
-export function createServer({ logger = createLogger({ level: parseLevel(process.env.LOG_LEVEL, 'silent') }), metrics = createMetrics() } = {}) {
+export function loadLocalEnv(file = LOCAL_ENV_FILE) {
+  if (existsSync(file)) process.loadEnvFile(file);
+}
+
+/**
+ * @param {{ logger?: Logger }} [options]
+ */
+export function createServer({ logger = createLogger({ level: parseLevel(process.env.LOG_LEVEL, 'silent') }) } = {}) {
+  const metrics = createMetrics();
   return http.createServer(async (req, res) => {
     const started = process.hrtime.bigint();
     const { requestId, traceId } = requestContext(req.headers);
@@ -179,6 +190,7 @@ export function createServer({ logger = createLogger({ level: parseLevel(process
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  loadLocalEnv();
   const logger = createLogger({ level: parseLevel(process.env.LOG_LEVEL, 'info') });
   const port = Number(process.env.PORT ?? 3000);
   const server = createServer({ logger });

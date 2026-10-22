@@ -2,7 +2,8 @@
 // @ts-check
 // Runs regression suites from the catalogue and reports results with production-equivalent timings.
 // --retries N reruns a failing suite up to N times. A suite that fails and then passes is reported
-// as FLAKY in the console and in out/regression.json, so instability is tracked instead of hidden.
+// as FLAKY in the console and as `flaky: true` on its result in out/regression.json, so
+// instability is tracked instead of hidden.
 // --fail-on-flaky turns a flaky result into a failed run.
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -85,7 +86,7 @@ console.log(`Production-equivalent time: ${(scopedMinutes / 60).toFixed(1)} h of
 if (flaky.length) console.log(`Flaky (failed, then passed on retry): ${flaky.join(', ')}. See docs/runbooks/README.md#flaky-suite.\n`);
 
 mkdirSync(join(ROOT, 'out'), { recursive: true });
-writeFileSync(join(ROOT, 'out/regression.json'), `${JSON.stringify({ mode, retries, results, flaky, scopedMinutes, fullMinutes }, null, 2)}\n`);
+writeFileSync(join(ROOT, 'out/regression.json'), `${JSON.stringify({ mode, retries, results, scopedMinutes, fullMinutes }, null, 2)}\n`);
 const summary = [
   `## Regression: ${mode}`,
   '',

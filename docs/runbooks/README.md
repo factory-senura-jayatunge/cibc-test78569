@@ -7,7 +7,7 @@ What to do when something in OBR's delivery pipeline or local API goes wrong. OB
 | Signal | Where |
 | --- | --- |
 | Nightly regression failure | An open issue titled **Nightly regression failed**, created or updated by the `alert` job in [nightly-regression.yml](../../.github/workflows/nightly-regression.yml) |
-| Flaky suite | `::warning` annotations and the **Flaky** line in the nightly run summary. `flaky` in `out/regression.json` |
+| Flaky suite | `::warning` annotations and the **Flaky** line in the nightly run summary. `flaky: true` on the suite's result in `out/regression.json` |
 | Pull request regression scope and result | The CI job summary (impact report) and the `impact-evidence` artifact |
 | API request logs | JSON lines on stdout from `npm start`. Every line has `requestId`, `route`, `status`, and `durationMs` |
 | API metrics | `GET /api/metrics` (Prometheus text format): `http_requests_total` and `http_request_duration_seconds` by route template |

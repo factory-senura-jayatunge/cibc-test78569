@@ -77,12 +77,19 @@ const child = spawn(process.execPath, ['--cpu-prof', `--cpu-prof-dir=${PROFILE_D
 });
 const exited = new Promise((resolve) => child.once('exit', resolve));
 
-const started = Date.now();
-await waitForHealth(base);
-for (let i = 0; i < REQUESTS; i += 1) await (await fetch(`${base}${PATHS[i % PATHS.length]}`)).arrayBuffer();
-const elapsed = Date.now() - started;
-child.kill('SIGTERM');
-await exited;
+/** @returns {Promise<number>} elapsed milliseconds */
+async function runLoad() {
+  const started = Date.now();
+  try {
+    await waitForHealth(base);
+    for (let i = 0; i < REQUESTS; i += 1) await (await fetch(`${base}${PATHS[i % PATHS.length]}`)).arrayBuffer();
+    return Date.now() - started;
+  } finally {
+    child.kill('SIGTERM');
+    await exited;
+  }
+}
+const elapsed = await runLoad();
 
 const [latest] = readdirSync(PROFILE_DIR)
   .filter((name) => name.endsWith('.cpuprofile'))

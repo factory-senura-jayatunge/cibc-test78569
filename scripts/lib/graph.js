@@ -41,7 +41,7 @@ const IMPORT = /(?:^|\n)\s*(?:import|export)\s[^'"]*?from\s+['"](\.{1,2}\/[^'"]+
  * One suite in out/regression.json. A suite that failed and then passed on a retry is `flaky`.
  * @typedef {{ id: string, owner: string, passed: boolean, flaky: boolean, attempts: number, localMs: number, productionMinutes: number }} SuiteResult
  */
-/** @typedef {{ mode: string, retries: number, results: SuiteResult[], flaky: string[], scopedMinutes: number, fullMinutes: number }} RegressionResult */
+/** @typedef {{ mode: string, retries: number, results: SuiteResult[], scopedMinutes: number, fullMinutes: number }} RegressionResult */
 
 /**
  * @param {string} dir
