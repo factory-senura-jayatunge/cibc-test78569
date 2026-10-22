@@ -1,0 +1,62 @@
+name: Change request
+description: A business change with numbered acceptance criteria
+title: "<ID>: <short title>"
+labels: ["change-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use synthetic data only. Never include real client names or account numbers.
+  - type: input
+    id: change-id
+    attributes:
+      label: Change request ID
+      placeholder: WG-1042
+    validations:
+      required: true
+  - type: dropdown
+    id: lob
+    attributes:
+      label: Line of business
+      options:
+        - Investor's Edge
+        - Wood Gundy
+        - PIC
+        - Private Banking
+        - Shared platform
+    validations:
+      required: true
+  - type: input
+    id: requested-by
+    attributes:
+      label: Requested by
+      placeholder: Client Reporting, on behalf of Compliance
+    validations:
+      required: true
+  - type: input
+    id: target-release
+    attributes:
+      label: Target release
+      placeholder: next scheduled release
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: The business problem, and who it affects.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Number each criterion. Each one gets a test whose name starts with its ID.
+      placeholder: |
+        1. **AC1:** ...
+        2. **AC2:** ...
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      placeholder: Keep the change inside `src/lob/<lob>/`.
