@@ -1,0 +1,8 @@
+# Generated evidence (impact reports, regression results, release pack)
+out/
+
+node_modules/
+.env
+.env.*
+.DS_Store
+*.log
