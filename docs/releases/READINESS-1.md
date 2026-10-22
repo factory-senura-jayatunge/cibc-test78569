@@ -1,5 +1,6 @@
 # Release note: READINESS-1, agent-readiness tooling and review fixes
 
+**Change request:** [READINESS-1](../change-requests/READINESS-1-agent-readiness-tooling.md)
 **Line of business:** none (delivery tooling, observability, and CI)
 **Pull requests:** #3 (readiness tooling, merged as `b6ab9bb`) and its review follow-up
 **Files changed:** 47, listed under Change impact. No file under `src/platform/` or `src/lob/` changed.
