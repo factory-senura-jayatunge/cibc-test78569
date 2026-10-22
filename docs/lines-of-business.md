@@ -54,6 +54,8 @@ The quarterly fee is one quarter of the annual fee. The shared statement builder
 | Advisor | Account record |
 | Household assets | `householdAssets` |
 | Annual advisory fee (projected) | `annualAdvisoryFee` |
+| Effective annual advisory fee rate (bps) | Annual fee divided by household assets, in basis points to one decimal (WG-1042) |
+| Advisory fees, trailing four quarters | Four times the current quarter's fee (WG-1042) |
 
 ## PIC
 

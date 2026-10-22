@@ -64,7 +64,9 @@ GET /api/statements/WG-30115520?quarter=2026-Q3
         "rows": [
           { "label": "Advisor", "value": "R. Okafor" },
           { "label": "Household assets", "value": 273600 },
-          { "label": "Annual advisory fee (projected)", "value": 4045 }
+          { "label": "Annual advisory fee (projected)", "value": 4045 },
+          { "label": "Effective annual advisory fee rate (bps)", "value": 147.8 },
+          { "label": "Advisory fees, trailing four quarters", "value": 4045 }
         ]
       }
     ]

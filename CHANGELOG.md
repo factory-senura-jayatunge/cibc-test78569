@@ -4,6 +4,8 @@ Every change links to its change request and release note. Releases follow the `
 
 ## [Unreleased]: 2026.11 release train
 
+- **WG-1042** (#1): Wood Gundy statements show the effective annual advisory fee rate in basis points, and advisory fees for the trailing four quarters. [Release note](docs/releases/WG-1042.md)
+
 ## 2026.10: release baseline
 
 The state recorded in `.baseline/` as the last release.
