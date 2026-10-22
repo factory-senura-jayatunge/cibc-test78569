@@ -6,7 +6,6 @@
 /** @typedef {Record<string, unknown>} LogFields */
 /**
  * @typedef {object} Logger
- * @property {LogLevel} level
  * @property {(msg: string, fields?: LogFields) => void} debug
  * @property {(msg: string, fields?: LogFields) => void} info
  * @property {(msg: string, fields?: LogFields) => void} warn
@@ -17,7 +16,9 @@
 /** @type {Record<LogLevel, number>} */
 const SEVERITY = { debug: 10, info: 20, warn: 30, error: 40, silent: Infinity };
 
-const ACCOUNT_ID = /\b([A-Z]{2,3})-(\d{4,})\b/g;
+// No word boundaries: `_` and digits count as word characters, so `request_WG-30115520` or
+// `WG-30115520_retry` would slip past `\b` and be logged unmasked.
+const ACCOUNT_ID = /([A-Z]{2,3})-(\d{4,})/g;
 const REDACTED_KEYS = new Set(['holder', 'clientname', 'authorization', 'cookie', 'password', 'secret', 'token', 'apikey']);
 const MAX_DEPTH = 6;
 
@@ -67,11 +68,10 @@ export function createLogger({ level = 'info', bindings = {}, write = (line) => 
     /** @param {string} msg @param {LogFields} [fields] */
     (msg, fields = {}) => {
       if (SEVERITY[entryLevel] < SEVERITY[level]) return;
-      const entry = { time: now().toISOString(), level: entryLevel, msg: maskAccountIds(msg), ...bindings, ...fields };
+      const entry = { time: now().toISOString(), level: entryLevel, msg, ...bindings, ...fields };
       write(`${JSON.stringify(scrub(entry))}\n`);
     };
   return {
-    level,
     debug: emit('debug'),
     info: emit('info'),
     warn: emit('warn'),

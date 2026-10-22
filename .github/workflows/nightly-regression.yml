@@ -25,7 +25,7 @@ jobs:
         run: |
           if [ -f out/regression.md ]; then cat out/regression.md >> "$GITHUB_STEP_SUMMARY"; fi
           if [ -f out/regression.json ]; then
-            node -e 'for (const id of require("./out/regression.json").flaky ?? []) console.log(`::warning title=Flaky regression suite::${id} failed and then passed on retry`)'
+            node -e 'for (const { id } of (require("./out/regression.json").results ?? []).filter((result) => result.flaky)) console.log(`::warning title=Flaky regression suite::${id} failed and then passed on retry`)'
           fi
       - name: Upload results
         if: always()

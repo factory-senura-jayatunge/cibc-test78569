@@ -1,7 +1,12 @@
 // @ts-check
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createServer } from '../src/server.js';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createServer, loadLocalEnv } from '../src/server.js';
+import { MAX_BYTES, findOversized } from '../scripts/check-file-size.js';
 import { createLogger, maskAccountIds, parseLevel, scrub } from '../src/observability/logger.js';
 import { createMetrics } from '../src/observability/metrics.js';
 import { requestContext } from '../src/observability/request-context.js';
@@ -171,4 +176,71 @@ test('unknown routes are counted under one label to keep metric cardinality boun
   const text = await (await fetch(`${base}/api/metrics`)).text();
   assert.match(text, /http_requests_total\{method="GET",route="unmatched",status="404"\} \d+/);
   assert.ok(!text.includes('58210043'));
+});
+
+test('READINESS-1 AC1: account numbers are masked next to underscores and other word characters', async () => {
+  assert.equal(maskAccountIds('request_WG-30115520'), 'request_WG-****5520');
+  assert.equal(maskAccountIds('WG-30115520_retry'), 'WG-****5520_retry');
+  assert.equal(maskAccountIds('xPB-12003885x'), 'xPB-****3885x');
+  lines.length = 0;
+  const response = await fetch(`${base}/api/health`, { headers: { 'x-request-id': 'request_WG-30115520' } });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('x-request-id'), 'request_WG-30115520', 'request ID was replaced, so masking was not exercised');
+  assert.ok(lines.length > 0, 'request was not logged');
+  assert.ok(!lines.join('').includes('30115520'), 'account number in a request ID leaked into logs');
+});
+
+/** @param {(repo: string) => void} body */
+function withTempRepo(body) {
+  const repo = mkdtempSync(join(tmpdir(), 'obr-file-size-'));
+  try {
+    execFileSync('git', ['init', '-q'], { cwd: repo });
+    body(repo);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+}
+
+test('READINESS-1 AC2: the file-size check measures files whose names Git would quote', () => {
+  withTempRepo((repo) => {
+    writeFileSync(join(repo, 'résumé.bin'), Buffer.alloc(MAX_BYTES + 1));
+    writeFileSync(join(repo, 'small.txt'), 'ok');
+    assert.deepEqual(
+      findOversized({ cwd: repo }).oversized.map(({ file }) => file),
+      ['résumé.bin'],
+    );
+  });
+});
+
+test('READINESS-1 AC3: --staged measures the staged blob, not the working copy', () => {
+  withTempRepo((repo) => {
+    const file = join(repo, 'data dump.bin');
+    writeFileSync(file, Buffer.alloc(MAX_BYTES + 1));
+    execFileSync('git', ['add', '.'], { cwd: repo });
+    writeFileSync(file, 'shrunk after staging');
+    assert.deepEqual(findOversized({ cwd: repo, staged: true }).oversized, [{ file: 'data dump.bin', bytes: MAX_BYTES + 1 }]);
+
+    writeFileSync(file, 'small');
+    execFileSync('git', ['add', '.'], { cwd: repo });
+    writeFileSync(file, Buffer.alloc(MAX_BYTES + 1));
+    assert.deepEqual(findOversized({ cwd: repo, staged: true }).oversized, []);
+  });
+});
+
+test('READINESS-1 AC4: loadLocalEnv reads .env without overriding the environment', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'obr-env-'));
+  const file = join(dir, '.env');
+  writeFileSync(file, 'OBR_TEST_FROM_FILE=file\nOBR_TEST_ALREADY_SET=file\n');
+  process.env.OBR_TEST_ALREADY_SET = 'shell';
+  try {
+    loadLocalEnv(join(dir, 'missing.env'));
+    assert.equal(process.env.OBR_TEST_FROM_FILE, undefined);
+    loadLocalEnv(file);
+    assert.equal(process.env.OBR_TEST_FROM_FILE, 'file');
+    assert.equal(process.env.OBR_TEST_ALREADY_SET, 'shell');
+  } finally {
+    delete process.env.OBR_TEST_FROM_FILE;
+    delete process.env.OBR_TEST_ALREADY_SET;
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

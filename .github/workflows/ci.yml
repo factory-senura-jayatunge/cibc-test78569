@@ -37,6 +37,8 @@ jobs:
       - name: Tests with coverage thresholds
         run: npm run test:coverage
 
+  # Overlaps with test:coverage above on purpose: this job skips `npm ci`, so it proves that
+  # `npm test` still runs with no install step (AGENTS.md).
   test:
     name: Unit and API tests
     runs-on: ubuntu-latest
