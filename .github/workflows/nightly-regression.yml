@@ -17,6 +17,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
       # One retry separates flaky suites from real failures. Flaky suites pass the run but are
       # reported in the summary and as warnings; see docs/runbooks/README.md#flaky-suite.
       - run: npm run regression:full -- --retries 1

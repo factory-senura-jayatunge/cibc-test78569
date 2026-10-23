@@ -147,6 +147,46 @@ GET /api/credit/PB-12003885
 }
 ```
 
+## `POST /api/advisory/:accountId/fee-disclosure`
+
+Renders a Wood Gundy advisory fee disclosure letter (WG-977, shipped in 2026.10). Send `templateId` for a catalogued letter (`annual-fee-disclosure` or `fee-change-notice`), or a `draft` with its own lodash template source. A draft may also set `variable`, the lodash `_.template` setting that names the data object inside the template body; catalogued templates use `letter`. Accounts from other lines of business return 400.
+
+```http
+POST /api/advisory/WG-30115520/fee-disclosure
+content-type: application/json
+
+{ "templateId": "annual-fee-disclosure" }
+```
+
+```json
+{
+  "letter": {
+    "title": "Annual advisory fee disclosure",
+    "body": "Dear Meera Singh,\n\nThis letter discloses the advisory fees for account WG-30115520, advised by R. Okafor.\nHousehold assets: 273600 CAD.\nProjected annual advisory fee: 4045 CAD.\n\nWood Gundy Client Reporting"
+  }
+}
+```
+
+A draft letter:
+
+```http
+POST /api/advisory/WG-30115520/fee-disclosure
+content-type: application/json
+
+{ "draft": { "title": "Ad-hoc fee note", "source": "Fee <%- letter.annualFee %> CAD for <%- letter.holder %>", "variable": "letter" } }
+```
+
+```json
+{
+  "letter": {
+    "title": "Ad-hoc fee note",
+    "body": "Fee 4045 CAD for Meera Singh"
+  }
+}
+```
+
+Rendering a letter writes an `advisory.fee-disclosure.rendered` audit event with the account number masked (`WG-****5520`) and no client name.
+
 ## `GET /api/mandates/:accountId/drift`
 
 Compares a PIC account's allocation with its mandate. Accounts without a mandate return 404.

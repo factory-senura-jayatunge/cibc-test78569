@@ -37,8 +37,6 @@ jobs:
       - name: Tests with coverage thresholds
         run: npm run test:coverage
 
-  # Overlaps with test:coverage above on purpose: this job skips `npm ci`, so it proves that
-  # `npm test` still runs with no install step (AGENTS.md).
   test:
     name: Unit and API tests
     runs-on: ubuntu-latest
@@ -47,6 +45,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
       - run: npm test
 
   coupling:
@@ -72,6 +72,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
       - name: Impact analysis against the target branch
         env:
           BASE_REF: ${{ github.base_ref }}

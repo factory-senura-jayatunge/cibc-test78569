@@ -2,9 +2,10 @@
 // @ts-check
 // Change-impact analysis: which regression suites does this change actually need?
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { ROOT, buildImportGraph, couplingKind, domainOf, listFiles, readJson, sha256 } from './lib/graph.js';
+import { MANIFEST_FILES, ROOT, buildImportGraph, couplingKind, domainOf, listFiles, readJson, sha256 } from './lib/graph.js';
+import { dependencyVersions, diffDependencies } from './lib/dependencies.js';
 import { flagValue } from './lib/cli.js';
 
 /** @typedef {import('./lib/graph.js').Catalog} Catalog */
@@ -28,7 +29,9 @@ function changedFromBaseline() {
     process.exit(2);
   }
   const manifest = readJson('.baseline/manifest.json');
-  const current = Object.fromEntries(['src', 'tests', 'public', 'regression'].flatMap((dir) => listFiles(dir)).map((file) => [file, sha256(file)]));
+  const tracked = ['src', 'tests', 'public', 'regression'].flatMap((dir) => listFiles(dir));
+  tracked.push(...MANIFEST_FILES.filter((file) => existsSync(join(ROOT, file))));
+  const current = Object.fromEntries(tracked.map((file) => [file, sha256(file)]));
   const changed = Object.keys(current).filter((file) => manifest.files[file] !== current[file]);
   const deleted = Object.keys(manifest.files).filter((file) => !(file in current));
   return [...changed, ...deleted].sort();
@@ -39,14 +42,53 @@ const base = flag('--base');
 const changed = explicit ? explicit.split(',').map((file) => file.trim()) : base ? changedFromGit(base) : changedFromBaseline();
 const source = base ? `git diff ${base}` : explicit ? '--files' : 'release baseline (.baseline/manifest.json)';
 
+/**
+ * The previous package.json for the active comparison mode, when one can be read.
+ * @returns {import('./lib/dependencies.js').PackageManifest | undefined}
+ */
+function previousManifest() {
+  try {
+    if (base) return JSON.parse(execFileSync('git', ['show', `${base}:package.json`], { cwd: ROOT, encoding: 'utf8' }));
+    if (!explicit) {
+      const snapshot = join(ROOT, '.baseline/snapshot/package.json');
+      if (existsSync(snapshot)) return JSON.parse(readFileSync(snapshot, 'utf8'));
+    }
+  } catch {
+    // Fall through: without a before-state the widest safe scope applies.
+  }
+  return undefined;
+}
+
+/**
+ * Dependencies added, removed, or re-versioned by this change. A `--files` prediction has no
+ * before-state, so every declared dependency counts; likewise when the previous manifest is
+ * unreadable.
+ * @returns {{ names: string[], attributed: boolean }}
+ */
+function changedDependencyNames() {
+  if (!changed.some((file) => MANIFEST_FILES.includes(file))) return { names: [], attributed: true };
+  const before = explicit ? undefined : previousManifest();
+  if (!before) return { names: Object.keys(dependencyVersions(readJson('package.json'))).sort(), attributed: false };
+  return { names: diffDependencies(before, readJson('package.json')), attributed: true };
+}
+
 const catalog = /** @type {Catalog} */ (readJson('regression/catalog.json'));
-const { dependents } = buildImportGraph();
+const { dependents, packageImporters } = buildImportGraph();
+
+const changedPackages = changedDependencyNames();
+/** @type {Map<string, string>} importer file -> changed package that pulled it in */
+const importedChangedPackage = new Map();
+for (const name of changedPackages.names) {
+  for (const importer of packageImporters.get(name) ?? []) {
+    if (!importedChangedPackage.has(importer)) importedChangedPackage.set(importer, name);
+  }
+}
 
 /** @type {Map<string, string | null>} */
 const parent = new Map();
 /** @type {string[]} */
 const queue = [];
-for (const file of changed) {
+for (const file of [...changed, ...importedChangedPackage.keys()]) {
   if (dependents.has(file) && !parent.has(file)) {
     parent.set(file, null);
     queue.push(file);
@@ -82,6 +124,8 @@ for (const suite of catalog.suites) {
   if (hit) {
     chain = chainTo(hit);
     reason = chain.length === 1 ? `${hit} changed` : chain.join(' -> ');
+    const seedPackage = importedChangedPackage.get(chain[0]);
+    if (seedPackage) reason += ` (${chain[0]} imports ${seedPackage}, changed in the package manifest)`;
     if (changed.includes(suite.file)) reason += ' (suite updated)';
   } else if (changed.includes(suite.file)) reason = 'suite file changed';
   else if (suite.always) reason = 'always runs';
@@ -134,6 +178,7 @@ const result = {
   selected,
   skipped,
   unregisteredTests,
+  changedPackages: changedPackages.names,
   couplings,
   scopedMinutes,
   fullMinutes,
@@ -153,6 +198,17 @@ const md = [
   `**Changed files (${changed.length})**`,
   ...changed.map((file) => `- \`${file}\``),
   '',
+  ...(changed.some((file) => MANIFEST_FILES.includes(file))
+    ? [
+        `**Changed packages:** ${
+          changedPackages.names.join(', ') ||
+          (changedPackages.attributed
+            ? 'none (manifest touched without a version change)'
+            : 'unattributed, so every declared dependency counts as changed')
+        }`,
+        '',
+      ]
+    : []),
   `**Lines of business affected:** ${impactedLobs.length ? impactedLobs.join(', ') : 'none'}`,
   '',
   `**Regression scope:** ${selected.length} of ${catalog.suites.length} suites, ${hours(scopedMinutes)} h of ${hours(fullMinutes)} h production-equivalent (${saved}% less than full regression)`,
@@ -181,6 +237,10 @@ console.log(`\nChange impact analysis  (compared against ${source})\n`);
 console.log(`Changed files (${changed.length}):`);
 for (const file of changed) console.log(`  ${pad(file, 44)} [${domainOf(file)}]`);
 if (!runtimeChanged) console.log('  No runtime code or tests changed. Only the smoke suite is required.');
+if (changed.some((file) => MANIFEST_FILES.includes(file))) {
+  const note = changedPackages.attributed ? '' : ' (unattributed, so every declared dependency counts as changed)';
+  console.log(`Changed packages: ${changedPackages.names.join(', ') || 'none'}${note}`);
+}
 console.log(`\nLines of business affected: ${impactedLobs.length ? impactedLobs.join(', ') : 'none'}`);
 console.log(`\nSelected regression suites: ${selected.length} of ${catalog.suites.length}`);
 for (const suite of selected) console.log(`  + ${pad(suite.id, 18)} ${pad(`${suite.productionMinutes} min`, 9)} ${suite.reason}`);

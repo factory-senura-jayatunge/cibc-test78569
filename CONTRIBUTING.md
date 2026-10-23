@@ -4,7 +4,7 @@ Thanks for working on OBR. Read [AGENTS.md](AGENTS.md) first: it holds the rules
 
 ## Setup
 
-You need Node 22 or later (see `.nvmrc`). The application has no runtime dependencies, so `npm test` and `npm start` work without an install. The quality gates need the dev tooling:
+You need Node 22 or later (see `.nvmrc`). Install before doing anything else:
 
 ```bash
 npm ci          # dev tooling (ESLint, Prettier, TypeScript, knip, jscpd) and the pre-commit hook
@@ -63,7 +63,7 @@ Type checking is strict and opt-in per file: files that start with `// @ts-check
 
 ## Dependency updates
 
-The application has no runtime dependencies. Keep it that way: a runtime dependency needs a change request and an owner.
+The application has one runtime dependency: lodash, pinned by the Wood Gundy fee disclosure letters (WG-977). Keep the count that low: any further runtime dependency needs a change request and an owner.
 
 Dev tooling versions are pinned exactly in `package.json` and locked in `package-lock.json`. Dependabot (`.github/dependabot.yml`) proposes updates weekly. Do not adopt a release until it has been public for at least 7 days (14 for a major version). Dependabot's `cooldown` enforces this for its own pull requests, and the same rule applies to manual updates: check the publish date with `npm view <package> time`.
 

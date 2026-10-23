@@ -18,12 +18,12 @@ OBR is the wealth platform behind four lines of business. They share one codebas
 
 ## Getting started
 
-You need Node 22 or later. The application has no runtime dependencies, so tests and the server run without an install step.
+You need Node 22 or later. The application has one runtime dependency (lodash, used by the Wood Gundy fee disclosure letters since 2026.10), so install first:
 
 ```bash
+npm ci       # runtime dependency, dev tooling for the quality gates, plus the pre-commit hook
 npm test     # unit and API tests
 npm start    # portal and API at http://localhost:3000
-npm ci       # dev tooling for the quality gates, plus the pre-commit hook
 npm run check
 ```
 
@@ -76,6 +76,7 @@ Lines of business depend on the platform. They must not depend on each other, an
 | `GET` | `/api/statements/:accountId?quarter=YYYY-Qn` | Quarterly statement for any account |
 | `POST` | `/api/orders/preview` | Investor's Edge order preview with commission and net amount |
 | `GET` | `/api/credit/:accountId` | Private Banking credit facility summary |
+| `POST` | `/api/advisory/:accountId/fee-disclosure` | Wood Gundy advisory fee disclosure letter, from a catalogued template or a draft |
 | `GET` | `/api/mandates/:accountId/drift` | PIC mandate allocation drift |
 
 Request and response examples are in [docs/api.md](docs/api.md). The OpenAPI schema is [docs/openapi.yaml](docs/openapi.yaml). Every response carries an `X-Request-ID` header that matches the `requestId` in the logs.
@@ -90,7 +91,7 @@ Every change starts as a change request with numbered acceptance criteria. It mo
 4. **File evidence.** The release note maps criteria to tests and records the regression scope, risks, and rollback.
 5. **Approve.** A person reviews and merges. Full regression still runs nightly and before every release cut.
 
-Most changes run a fraction of the 18-hour catalogue. For example, the 2026.11 release train needs 4 of 13 suites, which is 5 hours. See [docs/release-process.md](docs/release-process.md) and [docs/regression.md](docs/regression.md).
+Most changes run a fraction of the 18-hour catalogue. For example, the 2026.11 release train needs 4 of 15 suites, which is 5 hours. See [docs/release-process.md](docs/release-process.md) and [docs/regression.md](docs/regression.md).
 
 ## Repository layout
 
@@ -104,6 +105,7 @@ tests/                 One file per regression suite
 regression/catalog.json  Suite ownership, covered files, production-equivalent minutes
 scripts/               Impact analysis, scoped regression, coupling report, release pack, profiler, docs checks
 .baseline/             Release baseline: file manifest and snapshot of the last release
+security/findings/     Archived scanner findings (SARIF plus a human-readable note per scan)
 .factory/              Droids, commands, and skills for agent-assisted delivery
 docs/                  Architecture, lines of business, API, release process, regression
 ```
@@ -115,6 +117,7 @@ docs/                  Architecture, lines of business, API, release process, re
 | [CI](.github/workflows/ci.yml) | Every pull request and push to `main` | The quality gates (`npm run check` steps), `npm test`, and the coupling report. Pull requests also run impact analysis against the target branch and the scoped regression, and post the impact report to the job summary |
 | [Nightly regression](.github/workflows/nightly-regression.yml) | Daily at 06:00 UTC, or on demand | `npm run regression:full -- --retries 1`. Flaky suites are reported. A scheduled failure opens or updates a **Nightly regression failed** issue |
 | [CodeQL](.github/workflows/codeql.yml) | Pull requests, pushes to `main`, weekly | Static security analysis (`security-extended` queries) |
+| [Security scan](.github/workflows/security-scan.yml) | Pull requests, pushes to `main`, weekly, or on demand | `npm audit` converted to SARIF and uploaded to code scanning. Findings are archived under `security/findings/` |
 | [DAST](.github/workflows/dast.yml) | Pull requests, weekly, or on demand | OWASP ZAP baseline scan against the running API and portal |
 | [Droid Auto Review](.github/workflows/droid-review.yml) | Pull requests opened or marked ready | Automated code and security review comments. Needs the `FACTORY_API_KEY` secret |
 | [Dependabot](.github/dependabot.yml) | Weekly | Dev tooling and GitHub Actions updates, held for 7 days after release |

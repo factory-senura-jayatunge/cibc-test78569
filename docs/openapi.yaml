@@ -16,6 +16,7 @@ tags:
   - name: investors-edge
   - name: private-banking
   - name: pic
+  - name: wood-gundy
 paths:
   /api/health:
     get:
@@ -144,6 +145,33 @@ paths:
                 required: [credit]
                 properties:
                   credit: { $ref: '#/components/schemas/CreditSummary' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/advisory/{accountId}/fee-disclosure:
+    post:
+      tags: [wood-gundy]
+      operationId: renderFeeDisclosure
+      summary: Render a Wood Gundy advisory fee disclosure letter
+      description: >-
+        Catalogued letters are rendered by `templateId`. A `draft` supplies its own lodash
+        template source and may set `variable`, the `_.template` setting that names the data
+        object inside the template body. Audit output masks the account number.
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DisclosureRequest' }
+      responses:
+        '200':
+          description: The rendered letter.
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DisclosureLetter' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -288,6 +316,32 @@ components:
           type: string
           enum: [ok, watch, margin-call-warning]
           description: '`ok` below 0.60, `watch` from 0.60 to 0.70 inclusive, `margin-call-warning` above 0.70.'
+    DisclosureRequest:
+      type: object
+      properties:
+        templateId:
+          type: string
+          enum: [annual-fee-disclosure, fee-change-notice]
+          description: Catalogued letter to render. Ignored when `draft` is present.
+        draft:
+          type: object
+          required: [source]
+          properties:
+            title: { type: string, description: 'Defaults to `Draft advisory fee disclosure`.' }
+            source: { type: string, description: lodash template body. }
+            variable:
+              type: string
+              description: lodash `_.template` `variable` setting naming the data object. Catalogued templates use `letter`.
+    DisclosureLetter:
+      type: object
+      required: [letter]
+      properties:
+        letter:
+          type: object
+          required: [title, body]
+          properties:
+            title: { type: string }
+            body: { type: string }
     DriftReport:
       type: object
       required: [accountId, mandate, rows, needsRebalance]
