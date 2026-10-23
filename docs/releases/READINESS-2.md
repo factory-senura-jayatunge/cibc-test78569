@@ -28,7 +28,7 @@ Compared against: `git diff origin/main` (CI mode).
 
 ## Scoped regression result
 
-**Scoped regression (`npm run regression:scoped`):** all selected suites passed. `npm test`: 88 of 88 passed. Full regression still runs nightly.
+**Scoped regression (`npm run regression:scoped`):** all selected suites passed. `npm test`: 83 of 83 passed. Full regression still runs nightly.
 
 ## Risks
 

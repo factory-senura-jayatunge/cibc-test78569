@@ -18,6 +18,6 @@
     { "id": "pic-statements", "owner": "pic", "file": "tests/pic-statements.test.js", "covers": ["src/lob/pic/index.js", "src/platform/statements.js"], "productionMinutes": 75 },
     { "id": "pb-credit", "owner": "private-banking", "file": "tests/pb-credit.test.js", "covers": ["src/lob/private-banking/credit.js"], "productionMinutes": 120 },
     { "id": "pb-statements", "owner": "private-banking", "file": "tests/pb-statements.test.js", "covers": ["src/lob/private-banking/index.js", "src/platform/statements.js"], "productionMinutes": 60 },
-    { "id": "tooling-impact", "owner": "release-engineering", "file": "tests/tooling-impact.test.js", "covers": ["scripts/impact.js", "scripts/baseline.js", "scripts/lib/graph.js", "scripts/lib/dependencies.js"], "productionMinutes": 0 }
+    { "id": "tooling-impact", "owner": "release-engineering", "file": "tests/tooling-impact.test.js", "covers": ["scripts/impact.js", "scripts/baseline.js", "scripts/audit-to-sarif.js", "scripts/lib/graph.js", "scripts/lib/dependencies.js"], "productionMinutes": 0 }
   ]
 }

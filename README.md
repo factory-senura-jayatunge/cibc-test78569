@@ -105,6 +105,7 @@ tests/                 One file per regression suite
 regression/catalog.json  Suite ownership, covered files, production-equivalent minutes
 scripts/               Impact analysis, scoped regression, coupling report, release pack, profiler, docs checks
 .baseline/             Release baseline: file manifest and snapshot of the last release
+security/findings/     Archived scanner findings (SARIF plus a human-readable note per scan)
 .factory/              Droids, commands, and skills for agent-assisted delivery
 docs/                  Architecture, lines of business, API, release process, regression
 ```
@@ -116,6 +117,7 @@ docs/                  Architecture, lines of business, API, release process, re
 | [CI](.github/workflows/ci.yml) | Every pull request and push to `main` | The quality gates (`npm run check` steps), `npm test`, and the coupling report. Pull requests also run impact analysis against the target branch and the scoped regression, and post the impact report to the job summary |
 | [Nightly regression](.github/workflows/nightly-regression.yml) | Daily at 06:00 UTC, or on demand | `npm run regression:full -- --retries 1`. Flaky suites are reported. A scheduled failure opens or updates a **Nightly regression failed** issue |
 | [CodeQL](.github/workflows/codeql.yml) | Pull requests, pushes to `main`, weekly | Static security analysis (`security-extended` queries) |
+| [Security scan](.github/workflows/security-scan.yml) | Pull requests, pushes to `main`, weekly, or on demand | `npm audit` converted to SARIF and uploaded to code scanning. Findings are archived under `security/findings/` |
 | [DAST](.github/workflows/dast.yml) | Pull requests, weekly, or on demand | OWASP ZAP baseline scan against the running API and portal |
 | [Droid Auto Review](.github/workflows/droid-review.yml) | Pull requests opened or marked ready | Automated code and security review comments. Needs the `FACTORY_API_KEY` secret |
 | [Dependabot](.github/dependabot.yml) | Weekly | Dev tooling and GitHub Actions updates, held for 7 days after release |

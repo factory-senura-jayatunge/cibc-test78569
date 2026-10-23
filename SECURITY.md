@@ -28,6 +28,7 @@ Only `main` is supported.
 | OWASP ZAP baseline scan of the running app | `.github/workflows/dast.yml` |
 | Droid security review on pull requests | `.github/workflows/droid-review.yml` |
 | Dependency updates, held 7 days after release | `.github/dependabot.yml` |
+| Dependency scanning (`npm audit` → SARIF → code scanning) | `.github/workflows/security-scan.yml` |
 
 ## Known gaps
 
@@ -40,3 +41,4 @@ These are tracked and accepted for a local model. A production deployment would 
 | The audit log is in memory and is lost on restart | `src/platform/audit.js` |
 | `AUDIT_STDOUT=1` writes audit detail to stdout | `src/platform/audit.js` |
 | Responses set no security headers (CSP, `X-Content-Type-Options`, `X-Frame-Options`), so the ZAP baseline scan reports warnings | `src/server.js` |
+| lodash 4.17.20 has known advisories (CVE-2021-23337, CVE-2020-28500, and others), reachable through the draft-letter `variable` option | `src/lob/wood-gundy/disclosure.js`, tracked in `security/findings/2026-10-22-sca.md` |
