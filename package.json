@@ -41,7 +41,7 @@
     "knip": "6.41.0",
     "lint-staged": "17.5.1",
     "prettier": "3.9.10",
-    "typescript": "6.0.3"
+    "typescript": "7.0.2"
   },
   "lint-staged": {
     "*.js": [
