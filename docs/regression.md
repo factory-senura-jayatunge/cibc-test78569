@@ -22,14 +22,16 @@ The full regression catalogue takes 18 hours in production terms. Running all of
 | `platform-pricing` | platform | `src/platform/pricing.js` | 45 |
 | `platform-fees` | platform | `src/platform/fees.js`, `src/platform/money.js` | 90 |
 | `platform-audit` | platform | `src/platform/audit.js` | 30 |
-| `ie-trading` | investors-edge | `src/lob/investors-edge/trading.js` | 180 |
+| `ie-trading` | investors-edge | `src/lob/investors-edge/trading.js` | 120 |
 | `ie-statements` | investors-edge | `src/lob/investors-edge/index.js`, `src/platform/statements.js` | 75 |
 | `wg-advisory` | wood-gundy | `src/lob/wood-gundy/advisory.js` | 120 |
+| `wg-disclosure` | wood-gundy | `src/lob/wood-gundy/disclosure.js`, `src/lob/wood-gundy/letter-templates.js` | 60 |
 | `wg-statements` | wood-gundy | `src/lob/wood-gundy/index.js`, `src/platform/statements.js` | 90 |
 | `pic-mandates` | pic | `src/lob/pic/mandates.js` | 120 |
 | `pic-statements` | pic | `src/lob/pic/index.js`, `src/platform/statements.js` | 75 |
 | `pb-credit` | private-banking | `src/lob/private-banking/credit.js` | 120 |
 | `pb-statements` | private-banking | `src/lob/private-banking/index.js`, `src/platform/statements.js` | 60 |
+| `tooling-impact` | release-engineering | `scripts/impact.js`, `scripts/baseline.js`, `scripts/lib/graph.js`, `scripts/lib/dependencies.js` | 0 |
 | **Total** | | | **1,080 (18 h)** |
 
 The production minutes are illustrative. Locally, the whole catalogue runs in about 3 seconds.
@@ -38,7 +40,7 @@ The production minutes are illustrative. Locally, the whole catalogue runs in ab
 
 `scripts/impact.js` works in four steps:
 
-1. **Find changed files.** Against the release baseline manifest by default, against a Git ref with `--base <ref>`, or from an explicit list with `--files a,b`.
+1. **Find changed files.** Against the release baseline manifest by default, against a Git ref with `--base <ref>`, or from an explicit list with `--files a,b`. If `package.json` or `package-lock.json` changed, the changed dependencies are diffed and every source file that imports one of them counts as changed too (a `--files` prediction has no before-state, so every declared dependency counts).
 2. **Walk the import graph in reverse.** `scripts/lib/graph.js` parses every relative `import` and `export ... from` under `src/`. Starting from the changed files, it follows each file to the files that import it, until nothing new is reached.
 3. **Select suites.** A suite runs if any file it covers was reached, if its own test file changed, or if it is marked `always`.
 4. **Explain.** Each selected suite records the dependency chain that pulled it in, for example `src/lob/private-banking/index.js → src/server.js`. Any boundary violation on that chain is reported as coupling that widened the change.
@@ -56,7 +58,7 @@ Outputs:
 ```bash
 npm run impact               # select suites for the current change
 npm run regression:scoped    # run only those suites
-npm run regression:full      # run all 13 suites
+npm run regression:full      # run all 15 suites
 node scripts/regression.js --suites pb-credit,pb-statements   # run named suites
 node scripts/regression.js --all --retries 1                  # what the nightly run does
 ```
@@ -73,8 +75,9 @@ One Wood Gundy change, two designs:
 
 | Design | Files changed | Suites | Production time |
 | --- | --- | --- | --- |
-| Edit `src/lob/wood-gundy/advisory.js` | `advisory.js`, test | 6 of 13: `smoke`, `wg-advisory`, and all four `*-statements` suites, because `src/platform/statements.js` imports `advisory.js` (OBR-2231) | 7.5 h |
-| Edit `src/lob/wood-gundy/index.js` | `index.js`, test | 2 of 13: `smoke`, `wg-statements` | 2.0 h |
+| Edit `src/lob/wood-gundy/advisory.js` | `advisory.js`, test | 6 of 15: `smoke`, `wg-advisory`, and all four `*-statements` suites, because `src/platform/statements.js` imports `advisory.js` (OBR-2231) | 7.5 h |
+| Edit `src/lob/wood-gundy/index.js` | `index.js`, test | 2 of 15: `smoke`, `wg-statements` | 2.0 h |
+| Bump `lodash` in `package.json` | `package.json`, `package-lock.json` | 3 of 15: `smoke`, `wg-disclosure`, `wg-statements`, because only `disclosure.js` imports lodash | 3.0 h |
 
 WG-1042 shipped the second design.
 

@@ -91,7 +91,7 @@ Every change starts as a change request with numbered acceptance criteria. It mo
 4. **File evidence.** The release note maps criteria to tests and records the regression scope, risks, and rollback.
 5. **Approve.** A person reviews and merges. Full regression still runs nightly and before every release cut.
 
-Most changes run a fraction of the 18-hour catalogue. For example, the 2026.11 release train needs 4 of 13 suites, which is 5 hours. See [docs/release-process.md](docs/release-process.md) and [docs/regression.md](docs/regression.md).
+Most changes run a fraction of the 18-hour catalogue. For example, the 2026.11 release train needs 4 of 15 suites, which is 5 hours. See [docs/release-process.md](docs/release-process.md) and [docs/regression.md](docs/regression.md).
 
 ## Repository layout
 

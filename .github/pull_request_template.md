@@ -18,7 +18,7 @@ Closes #
 
 <!-- Paste the summary from `npm run impact`. CI posts the full report to the job summary. -->
 
-Suites: X of 13, Y h of 18 h production-equivalent.
+Suites: X of 15, Y h of 18 h production-equivalent.
 
 ## Acceptance criteria to tests
 

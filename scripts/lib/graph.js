@@ -3,10 +3,14 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, posix, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { packageName } from './dependencies.js';
 
 export const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
-const IMPORT = /(?:^|\n)\s*(?:import|export)\s[^'"]*?from\s+['"](\.{1,2}\/[^'"]+)['"]/g;
+const IMPORT = /(?:^|\n)\s*(?:import|export)\s[^'"]*?from\s+['"]([^'"]+)['"]/g;
+
+/** Package manifests whose changes impact analysis maps to importers (READINESS-2). */
+export const MANIFEST_FILES = ['package.json', 'package-lock.json'];
 
 /**
  * @typedef {object} Suite
@@ -32,6 +36,7 @@ const IMPORT = /(?:^|\n)\s*(?:import|export)\s[^'"]*?from\s+['"](\.{1,2}\/[^'"]+
  * @property {SelectedSuite[]} selected
  * @property {{ id: string, owner: string, productionMinutes: number }[]} skipped
  * @property {string[]} unregisteredTests
+ * @property {string[]} changedPackages
  * @property {Coupling[]} couplings
  * @property {number} scopedMinutes
  * @property {number} fullMinutes
@@ -86,22 +91,42 @@ export function domainOf(file) {
   return 'other';
 }
 
+/**
+ * Records that a source file imports a package (bare specifier, not relative or `node:`).
+ * @param {Map<string, Set<string>>} packageImporters
+ * @param {string} specifier
+ * @param {string} file
+ */
+function recordPackageImport(packageImporters, specifier, file) {
+  const name = packageName(specifier);
+  if (!name) return;
+  if (!packageImporters.has(name)) packageImporters.set(name, new Set());
+  packageImporters.get(name)?.add(file);
+}
+
 export function buildImportGraph() {
   const files = listFiles('src', (file) => file.endsWith('.js'));
   /** @type {Map<string, Set<string>>} */
   const imports = new Map(files.map((file) => [file, new Set()]));
   /** @type {Map<string, Set<string>>} */
   const dependents = new Map(files.map((file) => [file, new Set()]));
+  /** @type {Map<string, Set<string>>} package name -> src files that import it */
+  const packageImporters = new Map();
   for (const file of files) {
     const source = readFileSync(join(ROOT, file), 'utf8');
     for (const match of source.matchAll(IMPORT)) {
-      const target = posix.normalize(posix.join(posix.dirname(file), match[1]));
+      const specifier = match[1];
+      if (!specifier.startsWith('.')) {
+        recordPackageImport(packageImporters, specifier, file);
+        continue;
+      }
+      const target = posix.normalize(posix.join(posix.dirname(file), specifier));
       if (!imports.has(target)) continue;
       imports.get(file)?.add(target);
       dependents.get(target)?.add(file);
     }
   }
-  return { files, imports, dependents };
+  return { files, imports, dependents, packageImporters };
 }
 
 /**
