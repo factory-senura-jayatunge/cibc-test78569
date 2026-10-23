@@ -1,6 +1,0 @@
-# Installed by `npm install` (the "prepare" script runs husky). Mirrors the CI quality job.
-npx lint-staged
-node scripts/check-file-size.js --staged
-npm run --silent typecheck
-npm run --silent docs:check
-npm test
