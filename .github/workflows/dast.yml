@@ -23,6 +23,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
       - name: Start OBR
         run: |
           LOG_LEVEL=warn PORT=3000 node src/server.js &
