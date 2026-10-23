@@ -52,6 +52,9 @@ async function routeApi(req, res, url, [resource, id, action]) {
   if (req.method === 'GET' && resource === 'credit' && id) {
     return sendJson(res, 200, { credit: privateBanking.creditSummary(id) });
   }
+  if (req.method === 'POST' && resource === 'advisory' && id && action === 'fee-disclosure') {
+    return sendJson(res, 200, { letter: woodGundy.feeDisclosureLetter(id, await readJson(req)) });
+  }
   if (req.method === 'GET' && resource === 'mandates' && id && action === 'drift') {
     return sendJson(res, 200, { drift: pic.driftReport(id) });
   }
