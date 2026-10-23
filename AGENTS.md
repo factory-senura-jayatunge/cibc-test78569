@@ -20,14 +20,14 @@ Synthetic model of a wealth-platform monolith ("OBR") that serves four lines of 
 | `npm run profile` | CPU-profiles the API under load. Writes a `.cpuprofile` to `out/profiles/` |
 | `npm start` | Portal at http://localhost:3000. JSON logs on stdout; `LOG_LEVEL` sets the level (see `.env.example`) |
 
-Node 22 or later. `npm test` and `npm start` need no install. Run `npm ci` once before `npm run check`; it installs the dev tooling and the pre-commit hook. The `run-quality-gates` skill in `.factory/skills/` explains how to fix each gate.
+Node 22 or later. Run `npm ci` after cloning and whenever `package-lock.json` changes; it installs the one runtime dependency (lodash), the dev tooling, and the pre-commit hook. The `run-quality-gates` skill in `.factory/skills/` explains how to fix each gate.
 
 ## Layout
 
 - `src/platform/`: shared core used by every line of business (accounts, pricing, fees, money, audit, statements).
 - `src/lob/investors-edge/`, `src/lob/wood-gundy/`, `src/lob/pic/`, `src/lob/private-banking/`: one folder per line of business. `index.js` is the module's public surface.
 - `src/server.js`: HTTP API (a route table) and static portal.
-- `src/observability/`: structured logger with scrubbing, Prometheus metrics, and request IDs. Used only by `src/server.js`.
+- `src/observability/`: structured logger with scrubbing, Prometheus metrics, and request IDs. Request logging is wired up in `src/server.js`; other code reuses its masking helpers (for example `maskAccountIds`) rather than re-implementing them.
 - `scripts/`: impact analysis, regression runner, coupling report, release pack, profiler, and the docs and file-size checks.
 - `tests/<suite>.test.js`: one file per regression suite, registered in `regression/catalog.json`.
 - `regression/catalog.json`: suite ownership, covered files, and production-equivalent duration.

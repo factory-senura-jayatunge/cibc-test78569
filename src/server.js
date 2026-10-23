@@ -81,6 +81,11 @@ const ROUTES = [
     handle: ({ params }) => ({ body: { credit: privateBanking.creditSummary(params.accountId) } }),
   },
   {
+    method: 'POST',
+    path: '/api/advisory/:accountId/fee-disclosure',
+    handle: async ({ req, params }) => ({ body: { letter: woodGundy.feeDisclosureLetter(params.accountId, await readJson(req)) } }),
+  },
+  {
     method: 'GET',
     path: '/api/mandates/:accountId/drift',
     handle: ({ params }) => ({ body: { drift: pic.driftReport(params.accountId) } }),

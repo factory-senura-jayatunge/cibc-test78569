@@ -15,7 +15,7 @@ The state recorded in `.baseline/` as the last release.
 
 - **Platform:** synthetic account book, pricing for three index funds, fee schedules, money rounding helpers, in-memory audit log, and the quarterly statement builder.
 - **Investor's Edge:** order preview with cash and position checks, and active-trader commission pricing.
-- **Wood Gundy:** tiered advisory fees, and the advisory relationship section on statements.
+- **Wood Gundy:** tiered advisory fees, and the advisory relationship section on statements. **WG-977:** advisory fee disclosure letters, catalogued or from a draft template, rendered with lodash at `POST /api/advisory/:accountId/fee-disclosure`. [Release note](docs/releases/WG-977.md)
 - **PIC:** Balanced Income and Growth mandates, allocation drift, and rebalance signals.
 - **Private Banking:** secured line of credit summary with loan-to-value.
-- **Delivery tooling:** 13-suite regression catalogue (18 h production-equivalent), change-impact analysis, scoped regression runner, coupling report, and release pack.
+- **Delivery tooling:** 14-suite regression catalogue (18 h production-equivalent; the new `wg-disclosure` suite is offset by rebalancing `ie-trading` from 180 to 120 min), change-impact analysis, scoped regression runner, coupling report, and release pack.

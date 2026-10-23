@@ -18,12 +18,12 @@ OBR is the wealth platform behind four lines of business. They share one codebas
 
 ## Getting started
 
-You need Node 22 or later. The application has no runtime dependencies, so tests and the server run without an install step.
+You need Node 22 or later. The application has one runtime dependency (lodash, used by the Wood Gundy fee disclosure letters since 2026.10), so install first:
 
 ```bash
+npm ci       # runtime dependency, dev tooling for the quality gates, plus the pre-commit hook
 npm test     # unit and API tests
 npm start    # portal and API at http://localhost:3000
-npm ci       # dev tooling for the quality gates, plus the pre-commit hook
 npm run check
 ```
 
@@ -76,6 +76,7 @@ Lines of business depend on the platform. They must not depend on each other, an
 | `GET` | `/api/statements/:accountId?quarter=YYYY-Qn` | Quarterly statement for any account |
 | `POST` | `/api/orders/preview` | Investor's Edge order preview with commission and net amount |
 | `GET` | `/api/credit/:accountId` | Private Banking credit facility summary |
+| `POST` | `/api/advisory/:accountId/fee-disclosure` | Wood Gundy advisory fee disclosure letter, from a catalogued template or a draft |
 | `GET` | `/api/mandates/:accountId/drift` | PIC mandate allocation drift |
 
 Request and response examples are in [docs/api.md](docs/api.md). The OpenAPI schema is [docs/openapi.yaml](docs/openapi.yaml). Every response carries an `X-Request-ID` header that matches the `requestId` in the logs.
