@@ -1,0 +1,43 @@
+name: Bug report
+description: Something in OBR behaves incorrectly
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use synthetic data only. Never include real client names or account numbers. Report security issues privately, as described in SECURITY.md.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Investor's Edge
+        - Wood Gundy
+        - PIC
+        - Private Banking
+        - Shared platform
+        - API or portal
+        - Delivery tooling (impact, regression, release pack)
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. GET /api/statements/WG-30115520?quarter=2026-Q3
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+    validations:
+      required: true
