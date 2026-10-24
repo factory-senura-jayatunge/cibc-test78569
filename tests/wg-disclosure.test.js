@@ -102,3 +102,58 @@ test('WG-977 AC5: both catalogued letters are registered with their template set
   }
   assert.throws(() => getLetterTemplate('missing'), /Unknown letter template missing/);
 });
+
+// SEC-CVE-2021-23337 (code-scanning alert 1, GHSA-35jh-r3h4-6jhm): lodash command injection
+// through the `_.template` `variable` option. The probe payload below only flips a flag on
+// globalThis, so the regression test stays harmless: no command, file, or network access.
+const INJECTION_PROBE_FLAG = '__SEC_CVE_2021_23337_PROBE';
+const INJECTION_VARIABLE = 'a) { globalThis.' + INJECTION_PROBE_FLAG + ' = true; }\nfunction ignored(x';
+
+test('SEC-CVE-2021-23337 AC1: an injected draft variable is rejected and the injected code never runs', async () => {
+  const globals = /** @type {any} */ (globalThis);
+  globals[INJECTION_PROBE_FLAG] = false;
+  const { status, json } = await postDisclosure('WG-30115520', {
+    draft: { source: 'Advisory fee disclosure draft', variable: INJECTION_VARIABLE },
+  });
+  assert.equal(globals[INJECTION_PROBE_FLAG], false, 'the injected code must not execute');
+  assert.equal(status, 400, 'the injected draft variable must be rejected');
+  assert.match(json.error, /draft\.variable/);
+});
+
+test('SEC-CVE-2021-23337 AC2: a draft variable is accepted only when it is the allowlisted letter identifier', async () => {
+  const rejectedVariables = [
+    ['unlisted identifier', 'data', 'Fee <%- data.annualFee %> CAD'],
+    ['dotted identifier', 'letter.accountId', 'Fee <%- letter.annualFee %> CAD'],
+    ['non-string value', 123, 'Fee <%- letter.annualFee %> CAD'],
+    ['empty string', '', 'Fee <%- annualFee %> CAD'],
+  ];
+  for (const [label, variable, source] of rejectedVariables) {
+    const response = await postDisclosure('WG-30115520', { draft: { source, variable } });
+    assert.equal(response.status, 400, `${label} must be rejected`);
+    assert.match(response.json.error, /draft\.variable must be one of: letter/);
+  }
+
+  const allowlisted = await postDisclosure('WG-30115520', {
+    draft: { source: 'Fee <%- letter.annualFee %> CAD for <%- letter.holder %>', variable: 'letter' },
+  });
+  assert.equal(allowlisted.status, 200);
+  assert.equal(allowlisted.json.letter.body, 'Fee 4045 CAD for Meera Singh');
+});
+
+test('SEC-CVE-2021-23337 AC3: catalogued letters render byte-identically through the upgraded lodash', async () => {
+  const { status, json } = await postDisclosure('WG-30115520', { templateId: 'annual-fee-disclosure' });
+  assert.equal(status, 200);
+  assert.equal(json.letter.title, 'Annual advisory fee disclosure');
+  assert.equal(
+    json.letter.body,
+    [
+      'Dear Meera Singh,',
+      '',
+      'This letter discloses the advisory fees for account WG-30115520, advised by R. Okafor.',
+      'Household assets: 273600 CAD.',
+      'Projected annual advisory fee: 4045 CAD.',
+      '',
+      'Wood Gundy Client Reporting',
+    ].join('\n'),
+  );
+});
