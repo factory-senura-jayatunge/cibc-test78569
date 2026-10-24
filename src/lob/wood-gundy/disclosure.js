@@ -1,8 +1,9 @@
 // @ts-check
 // Renders Wood Gundy advisory fee disclosure letters (WG-977) from catalogued templates
-// or from a caller-supplied draft. Rendering goes through lodash `_.template`, and a draft
-// may name its own `variable` setting for the data object. Audit output masks the account
-// number and never carries the client name.
+// or from a caller-supplied draft. Rendering goes through lodash `_.template`; a draft may
+// name the data-object `variable`, but only from an allowlist, so request input never
+// reaches `_.template` settings unvalidated (SEC-CVE-2021-23337). Audit output masks the
+// account number and never carries the client name.
 
 import lodash from 'lodash';
 import { record } from '../../platform/audit.js';
@@ -23,7 +24,7 @@ import { getLetterTemplate } from './letter-templates.js';
  * @typedef {object} DraftLetter
  * @property {string} [title]
  * @property {string} source
- * @property {string} [variable]
+ * @property {string} [variable] data-object identifier; only allowlisted values are accepted (SEC-CVE-2021-23337)
  */
 
 /**
@@ -37,6 +38,28 @@ import { getLetterTemplate } from './letter-templates.js';
  * @property {string} title
  * @property {string} body
  */
+
+/**
+ * Data-object identifiers a draft may name for `_.template`. The catalogued templates use
+ * `letter`, so that is the one identifier a request may select (SEC-CVE-2021-23337).
+ * @type {ReadonlyArray<string>}
+ */
+const ALLOWED_DRAFT_VARIABLES = ['letter'];
+
+/**
+ * Settings for a draft body: `variable` is honored only when it names an allowlisted
+ * identifier, so a request cannot smuggle `_.template` settings into the compile
+ * (SEC-CVE-2021-23337).
+ * @param {DraftLetter} draft
+ * @returns {{ variable?: string }}
+ */
+function draftSettings(draft) {
+  if (draft.variable === undefined) return {};
+  if (typeof draft.variable !== 'string' || !ALLOWED_DRAFT_VARIABLES.includes(draft.variable)) {
+    throw new RangeError(`draft.variable must be one of: ${ALLOWED_DRAFT_VARIABLES.join(', ')}`);
+  }
+  return { variable: draft.variable };
+}
 
 /**
  * Compiles a template body with lodash and renders it against the letter data.
@@ -69,7 +92,7 @@ export function renderDisclosureLetter(accountId, request, letterData) {
     }
     title = request.draft.title ?? 'Draft advisory fee disclosure';
     source = request.draft.source;
-    settings = request.draft.variable ? { variable: request.draft.variable } : {};
+    settings = draftSettings(request.draft);
     origin = 'draft';
   } else {
     const template = getLetterTemplate(request.templateId ?? '');

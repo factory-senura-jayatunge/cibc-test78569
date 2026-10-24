@@ -155,8 +155,9 @@ paths:
       summary: Render a Wood Gundy advisory fee disclosure letter
       description: >-
         Catalogued letters are rendered by `templateId`. A `draft` supplies its own lodash
-        template source and may set `variable`, the `_.template` setting that names the data
-        object inside the template body. Audit output masks the account number.
+        template source and may set `variable` to `letter`, the only accepted name for the
+        data object inside the template body; any other value is rejected with 400. Audit
+        output masks the account number.
       parameters:
         - $ref: '#/components/parameters/AccountId'
       requestBody:
@@ -331,7 +332,12 @@ components:
             source: { type: string, description: lodash template body. }
             variable:
               type: string
-              description: lodash `_.template` `variable` setting naming the data object. Catalogued templates use `letter`.
+              enum: [letter]
+              description: >-
+                Data-object name for the lodash `_.template` body. Must be `letter`, the
+                identifier the catalogued templates use; any other value, including values
+                that would inject `_.template` settings, is rejected with 400
+                (SEC-CVE-2021-23337).
     DisclosureLetter:
       type: object
       required: [letter]
