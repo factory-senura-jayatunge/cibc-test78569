@@ -1,0 +1,32 @@
+# install-qa questionnaire progress (complete). Delete to start fresh.
+project: OBR (cibc-wealth-pov)
+repo_worktree: /Users/aurelian-suntzu/obr-qa
+repo_remote: https://github.com/factory-senura-jayatunge/cibc-test78569.git
+install_branch: chore/install-qa
+platform: github
+
+categories_completed:
+  - category_1_default_target
+  - category_2_personas
+  - category_3_critical_flows
+  - category_5_cleanup
+  - category_6_imagemagick
+  - category_7_ci_integration
+  - category_8_failure_learning
+
+answers:
+  default_target: local-dev # npm start on localhost:3000; no deployed environments exist
+  environment_restrictions: none # synthetic data, read-only flows
+  personas: single anonymous "visitor" persona # app has no authentication
+  critical_flows: confirmed as auto-detected # portal nav + statement render, 8 API endpoints, error handling
+  apps_detected:
+    - name: web # portal UI, agent-browser
+      path_patterns: [public/**, src/server.js]
+    - name: api # HTTP API, curl
+      path_patterns: [src/**]
+  cleanup: none # read-only app, no persistence
+  imagemagick: true # installed via brew during install
+  ci_workflow: yes-informational # GitHub Actions on PRs; runs but does not block merge
+  video_evidence: false # text-first evidence
+  droid_control_compose: false # no video evidence to edit
+  failure_learning: suggest_in_report

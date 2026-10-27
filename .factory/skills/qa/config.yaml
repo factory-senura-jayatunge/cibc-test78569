@@ -1,0 +1,42 @@
+project: OBR (cibc-wealth-pov)
+platform: github
+imagemagick: true
+video_evidence: false # record interactive flows through droid-control
+droid_control:
+  plugin: droid-control@factory-plugins
+  compose: false # single runtime toggle for optional edited MP4 output
+environments:
+  local-dev:
+    url: http://localhost:3000
+    restrictions: [] # synthetic data, read-only flows; no deployed environments exist
+    start_command: npm start # node src/server.js; PORT overrides the port, LOG_LEVEL the log level
+    readiness_check: 'curl -fsS http://localhost:3000/api/health returns {"status":"ok"}'
+default_target: local-dev
+auth:
+  method: none # the portal and API are unauthenticated by design (SECURITY.md: localhost only)
+  provider: none
+personas:
+  - name: visitor
+    description: 'Anonymous portal visitor and API client. The app has no login, so every flow runs as this persona.'
+    credentials_source: none
+    test_focus: [portal navigation, statement rendering, API reads, order preview, fee disclosure letters, error handling]
+    cannot_do: [] # nothing is permission-gated; there are no negative permission tests
+apps:
+  web:
+    path_patterns: [public/**, src/server.js]
+    skill: qa-web
+    test_tool: agent-browser
+    build_command: '' # vanilla JS portal served straight from public/; no build step
+  api:
+    path_patterns: [src/**]
+    skill: qa-api
+    test_tool: curl
+    build_command: ''
+feature_flags:
+  provider: none
+integrations: {} # none: lodash is the only runtime dependency
+cleanup:
+  auto_cleanup: false
+  strategy: none # the app is stateless; POST endpoints are pure computations with no persistence
+  instructions: 'Not applicable. All QA flows are read-only; no test users or data are created.'
+failure_learning: suggest_in_report
