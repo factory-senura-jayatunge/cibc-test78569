@@ -1,0 +1,119 @@
+name: QA
+
+# Functional QA for the OBR portal and API, run the way a real user would (browser + curl) by the
+# qa skill through `droid exec`. INFORMATIONAL ONLY: this check does not block merge -- do not add
+# it to branch protection. It posts and updates one sticky PR comment per PR, marked with the
+# <!-- qa-report --> HTML marker. Requires the FACTORY_API_KEY repository secret (already used by
+# droid-review.yml). Starts the dev server locally on the runner, the same pattern as dast.yml.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qa:
+    name: Functional QA (portal and API)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      pull-requests: write # posting and updating the sticky PR comment
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the qa skill maps the git diff to apps; it needs full history
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Read QA config toggles
+        id: qa-config
+        run: |
+          # Single runtime source of truth for setup gating: .factory/skills/qa/config.yaml.
+          ruby -ryaml -e 'c = YAML.load_file(".factory/skills/qa/config.yaml"); puts "imagemagick=#{c["imagemagick"]}"; puts "video=#{c["video_evidence"]}"; puts "compose=#{c["droid_control"]["compose"]}"' >> "$GITHUB_OUTPUT"
+      - name: Install ImageMagick (animated GIF diffs)
+        if: steps.qa-config.outputs.imagemagick == 'true'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick
+      - name: Install ffmpeg (recording finalization)
+        if: steps.qa-config.outputs.video == 'true' || steps.qa-config.outputs.compose == 'true'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Install droid CLI
+        run: |
+          curl -fsSL https://app.factory.ai/cli | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.factory/bin" >> "$GITHUB_PATH"
+      - name: Start OBR
+        run: |
+          LOG_LEVEL=warn PORT=3000 node src/server.js &
+          for _ in $(seq 1 30); do curl -fsS http://localhost:3000/api/health && exit 0; sleep 1; done
+          exit 1
+      - name: Run QA
+        id: qa
+        timeout-minutes: 20
+        continue-on-error: true # informational only: the report carries the result, the job stays green
+        env:
+          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -o pipefail
+          droid exec --auto high "You are running in a non-interactive CI environment. There is NO human available. Do NOT use AskUser, do NOT wait for confirmations, do NOT pause for input. Run the qa skill. The dev server is already running at http://localhost:3000, started from the checked-out branch code. The diff base is origin/${BASE_REF:-main}. Read video_evidence and droid_control.compose from .factory/skills/qa/config.yaml and use droid-control for every interactive flow. Write the final report to qa-results/report.md" 2>&1 | tee qa-output.txt
+      - name: Upload QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-evidence
+          path: qa-results/
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Post QA report as PR comment
+        # !cancelled (wrapped in ${{ }} because a bare leading ! is a YAML tag): a cancelled run
+        # must not PATCH the sticky comment with the no-report fallback over the last good report.
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          MARKER='<!-- qa-report -->'
+          {
+            echo "$MARKER"
+            echo
+            if [ -f qa-results/report.md ]; then
+              grep -q '^## QA Report' qa-results/report.md || echo '## QA Report'
+              cat qa-results/report.md
+            else
+              echo '## QA Report'
+              echo
+              echo ':no_entry: QA run produced no report. Check the job log and the qa-evidence artifact.'
+              echo
+              echo '<details><summary>Raw QA output (last 100 lines)</summary>'
+              echo
+              echo '```'
+              tail -n 100 qa-output.txt || true
+              echo '```'
+              echo
+              echo '</details>'
+            fi
+            echo
+            echo '---'
+            echo
+            echo "[QA evidence artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+          } > comment-body.md
+          EXISTING=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id" | head -n 1)
+          if [ -n "$EXISTING" ]; then
+            METHOD=PATCH
+            URL="repos/$GITHUB_REPOSITORY/issues/comments/$EXISTING"
+          else
+            METHOD=POST
+            URL="repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments"
+          fi
+          jq -Rs '{body: .}' < comment-body.md > comment-payload.json
+          gh api -X "$METHOD" "$URL" --input comment-payload.json > /dev/null

@@ -115,6 +115,7 @@ docs/                  Architecture, lines of business, API, release process, re
 | Workflow | Trigger | What it runs |
 | --- | --- | --- |
 | [CI](.github/workflows/ci.yml) | Every pull request and push to `main` | The quality gates (`npm run check` steps), `npm test`, and the coupling report. Pull requests also run impact analysis against the target branch and the scoped regression, and post the impact report to the job summary |
+| [QA](.github/workflows/qa.yml) | Pull requests, or on demand | Functional QA of the portal and API through the `qa` skill (`droid exec`): diff-driven flow selection, evidence capture, and one sticky PR comment. Informational: it does not block merge |
 | [Nightly regression](.github/workflows/nightly-regression.yml) | Daily at 06:00 UTC, or on demand | `npm run regression:full -- --retries 1`. Flaky suites are reported. A scheduled failure opens or updates a **Nightly regression failed** issue |
 | [CodeQL](.github/workflows/codeql.yml) | Pull requests, pushes to `main`, weekly | Static security analysis (`security-extended` queries) |
 | [Security scan](.github/workflows/security-scan.yml) | Pull requests, pushes to `main`, weekly, or on demand | `npm audit` converted to SARIF and uploaded to code scanning. Findings are archived under `security/findings/` |

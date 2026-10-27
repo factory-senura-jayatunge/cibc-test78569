@@ -4,6 +4,9 @@ coverage/
 *.cpuprofile
 *.heapprofile
 
+# QA run evidence (report, screenshots, captures) -- uploaded as workflow artifacts in CI
+qa-results/
+
 # Dependencies
 node_modules/
 

@@ -9,3 +9,4 @@ One release note per change request, filed with the change. Each note maps accep
 | [PB-2210](../change-requests/PB-2210-ltv-warning.md): Loan-to-value early warning on secured credit lines | Private Banking | 2026.11 | [PB-2210.md](PB-2210.md) |
 | [READINESS-1](../change-requests/READINESS-1-agent-readiness-tooling.md): Agent-readiness tooling (#3) and its review fixes | None (tooling) | 2026.11 | [READINESS-1.md](READINESS-1.md) |
 | [READINESS-2](../change-requests/READINESS-2-dependency-scanning.md): Dependency-aware impact analysis and dependency security scanning | None (tooling) | 2026.11 | [READINESS-2.md](READINESS-2.md) |
+| [READINESS-3](../change-requests/READINESS-3-automated-qa.md): Automated functional QA (qa skill, droid-control, pull-request workflow) | None (tooling) | 2026.11 | [READINESS-3.md](READINESS-3.md) |
