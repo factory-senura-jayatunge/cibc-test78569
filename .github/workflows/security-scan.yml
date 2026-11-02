@@ -36,7 +36,7 @@ jobs:
       - name: Convert the audit report to SARIF
         run: node scripts/audit-to-sarif.js out/npm-audit.json out/security-scan.sarif
       - name: Upload SARIF to code scanning
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: out/security-scan.sarif
           category: npm-audit
